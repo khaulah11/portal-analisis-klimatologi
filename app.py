@@ -1,588 +1,952 @@
-import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
+import os
+import calendar
 import io
 import zipfile
-import calendar
+import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-# =========================================================
-# 1. KONFIGURASI HALAMAN
-# =========================================================
+# ============================================================
+# STREAMLIT CONFIGURATION
+# ============================================================
+
 st.set_page_config(
-    page_title="Sistem Bersepadu Analisis Klimatologi | MetMalaysia Sabah",
-    layout="wide",
-    page_icon="🌤️"
+    page_title="Rainfall & Climatology Analysis",
+    page_icon="🌧️",
+    layout="wide"
 )
 
-# =========================================================
-# 2. KAMUS BAHASA (BILINGUAL DICTIONARY)
-# =========================================================
-TEXTS = {
-    "BM": {
-        "title": "Sistem Integrasi Analisis & Klimatologi AAWS",
-        "subtitle": "Jabatan Meteorologi Malaysia (MetMalaysia) | Pejabat Meteorologi Sabah",
-        "nav_analysis": "📊 Analisis Parameter",
-        "nav_qc": "📋 Semakan Kualiti & WMO Audit",
-        "sidebar_header": "📁 Kawalan & Tetapan Data",
-        "manual_header": "📖 Panduan Operasi & Standard WMO",
-        "manual_desc": """
-        **Panduan Penggunaan Sistem Bersepadu:**
-        1. **Muat Naik Fail:** Masukkan satu atau lebih fail AAWS (`.xls` / `.xlsx`) di bar sisi.
-        2. **Mod Analisis:** Pilih antara Pandangan Awam (Public), Saintifik Lanjutan (Scientific), atau Perbandingan Rentas Stesen.
-        3. **Audit WMO & QC:** Sistem menyaring data hilang dan menandakan rekod mencurigakan (*Suspect >150mm*) dan melampau (*Extreme >250mm*).
-        4. **Eksport Laporan:** Muat turun borang matriks piawai Excel, graf HTML interaktif, atau arkib ZIP lengkap.
-        """,
-        "upload_label": "Muat naik fail siri masa AAWS (.xls / .xlsx):",
-        "qc_mode_label": "⚙️ Piawaian Data Hilang (WMO):",
-        "download_zip": "📦 Muat Turun Semua Laporan ({param}) [.ZIP]",
-        "zip_filename": "Laporan_Klimatologi_Bersepadu_{param}.zip",
-        "select_param": "Parameter Cerapan:",
-        "param_rain": "🌧️ Hujan (Rainfall)",
-        "param_temp": "🌡️ Suhu Udara (Temperature)",
-        "select_station": "Pilih Stesen Cerapan:",
-        "station_name": "Stesen Cerapan",
-        "record_period": "Tempoh Rekod",
-        "completeness_rate": "Skor Kelengkapan WMO",
-        "invalid_months": "Bulan Tidak Lengkap",
-        "view_public": "🌐 Pandangan Umum (Public Dashboard)",
-        "view_scientific": "🔬 Pandangan Saintifik (Scientific Analysis)",
-        "view_matrix": "📋 Borang Matriks Piawai (Sheets)",
-        "view_compare": "📊 Perbandingan Merentas Stesen",
-        "qc_title": "Log Audit Integriti Data (WMO-No. 1203 & QC Thresholds)",
-        "qc_filter_failed": "🔍 Tapis: Tunjuk data bermasalah/hilang sahaja",
-        "download_qc_csv": "📥 Muat Turun Log Audit (.CSV)",
-        "info_upload": "👈 Sila muat naik fail raw AAWS di menu bar sisi kiri untuk memulakan analisis."
-    },
-    "EN": {
-        "title": "Integrated AAWS Climatology & Analysis System",
-        "subtitle": "Malaysian Meteorological Department (MetMalaysia) | Sabah Meteorological Office",
-        "nav_analysis": "📊 Parameter Analytics",
-        "nav_qc": "📋 Quality Control & WMO Audit",
-        "sidebar_header": "📁 Data Controls & Settings",
-        "manual_header": "📖 User Manual & Standards",
-        "manual_desc": """
-        **Integrated System Guide:**
-        1. **Upload Data:** Upload raw AAWS time-series files (`.xls` / `.xlsx`) via the sidebar.
-        2. **Analytical Views:** Switch smoothly between Public Dashboard, Advanced Scientific Analytics, or Multi-Station Comparison.
-        3. **WMO & QC Screening:** Automated missing data screening with suspect (>150mm) & extreme (>250mm) flaggers.
-        4. **Export Reports:** Download official Excel matrix sheets, interactive HTML plots, or bulk ZIP packages.
-        """,
-        "upload_label": "Upload AAWS time-series files (.xls / .xlsx):",
-        "qc_mode_label": "⚙️ Missing Data Standard (WMO):",
-        "download_zip": "📦 Download All Reports ({param}) [.ZIP]",
-        "zip_filename": "Integrated_Climatology_Report_{param}.zip",
-        "select_param": "Observation Parameter:",
-        "param_rain": "🌧️ Rainfall",
-        "param_temp": "🌡️ Air Temperature",
-        "select_station": "Select Observation Station:",
-        "station_name": "Station Name",
-        "record_period": "Record Period",
-        "completeness_rate": "WMO Completeness Score",
-        "invalid_months": "Incomplete Months",
-        "view_public": "🌐 Public Dashboard",
-        "view_scientific": "🔬 Scientific Analysis",
-        "view_matrix": "📋 Standard Excel Matrix",
-        "view_compare": "📊 Multi-Station Comparison",
-        "qc_title": "Data Integrity Audit Log (WMO-No. 1203 & QC)",
-        "qc_filter_failed": "🔍 Filter: Show missing/flagged records only",
-        "download_qc_csv": "📥 Download Audit Log (.CSV)",
-        "info_upload": "👈 Please upload raw AAWS files via the sidebar to start analysis."
+st.title("🌧️ Rainfall Data Analysis & Climatology System")
+st.caption("Pemprosesan, Quality Control, Persembahan Data Awam/Saintifik dan Analisis Lanjutan Siri Masa Hujan")
+
+# ============================================================
+# SIDEBAR SETTINGS
+# ============================================================
+
+st.sidebar.header("⚙️ Analysis Settings")
+
+# ------------------------------------------------------------
+# PILIHAN BAHASA
+# ------------------------------------------------------------
+LANG = st.sidebar.selectbox("🌐 Bahasa / Language", ["Bahasa Melayu", "English"])
+
+# ============================================================
+# TAHUN CLIMATOLOGY
+# ============================================================
+
+START_YEAR = st.sidebar.number_input(
+    "Start Year",
+    min_value=1900,
+    max_value=2100,
+    value=2016,
+    step=1
+)
+
+END_YEAR = st.sidebar.number_input(
+    "End Year",
+    min_value=1900,
+    max_value=2100,
+    value=2025,
+    step=1
+)
+
+if START_YEAR > END_YEAR:
+    st.sidebar.error("Start Year mesti lebih kecil atau sama dengan End Year.")
+    st.stop()
+
+years = range(int(START_YEAR), int(END_YEAR) + 1)
+YEAR_RANGE_TEXT = f"{int(START_YEAR)}–{int(END_YEAR)}"
+
+# ============================================================
+# TARGET YEAR
+# ============================================================
+
+target_year = st.sidebar.number_input(
+    "Target Year",
+    min_value=1900,
+    max_value=2100,
+    value=2018,
+    step=1
+)
+target_year = int(target_year)
+
+# ============================================================
+# WMO MISSING DATA RULE
+# ============================================================
+
+st.sidebar.subheader("WMO Missing Data Rule")
+
+MAX_MISSING_DAYS = st.sidebar.number_input(
+    "Maximum missing days",
+    min_value=0,
+    max_value=31,
+    value=10,
+    step=1,
+    help="Bulan ditolak jika bilangan missing days melebihi nilai ini. Default 10 bermaksud >=11 missing days ditolak."
+)
+
+MAX_CONSECUTIVE_MISSING = st.sidebar.number_input(
+    "Maximum consecutive missing days",
+    min_value=1,
+    max_value=31,
+    value=4,
+    step=1,
+    help="Bulan ditolak jika terdapat missing days berturut-turut melebihi nilai ini. Default 4 bermaksud >=5 berturut-turut ditolak."
+)
+
+# ============================================================
+# RAINFALL THRESHOLDS
+# ============================================================
+
+st.sidebar.subheader("🌧️ Rainfall Threshold")
+
+VALID_MIN = 0.0
+
+WET_DAY_MIN = st.sidebar.number_input(
+    "Wet day threshold (mm)",
+    min_value=0.0,
+    value=0.1,
+    step=0.01
+)
+
+SUSPECT_RAINFALL = st.sidebar.number_input(
+    "Suspect threshold (mm)",
+    min_value=0.0,
+    value=150.0,
+    step=10.0
+)
+
+EXTREME_RAINFALL = st.sidebar.number_input(
+    "Extreme threshold (mm)",
+    min_value=0.0,
+    value=250.0,
+    step=10.0
+)
+
+# ============================================================
+# MONTHS
+# ============================================================
+
+months = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+]
+
+# ============================================================
+# GRAPH SETTINGS & PALETTE
+# ============================================================
+
+RAINFALL_MIN = 0
+RAINFALL_MAX = 500
+
+st.sidebar.header("🎨 Plot Settings")
+
+BG_COLOR = st.sidebar.color_picker("Background Graf", "#FFFFFF")
+
+default_colors = [
+    "#4682B4", "#87CEEB", "#3CB371", "#32CD32",
+    "#FFD700", "#FFA500", "#FF7F50", "#FF6347",
+    "#9370DB", "#DA70D6", "#6A5ACD", "#008080"
+]
+
+if "bar_colors" not in st.session_state:
+    st.session_state.bar_colors = default_colors.copy()
+
+if "max_daily_color" not in st.session_state:
+    st.session_state.max_daily_color = "#FF6347"
+
+if "wet_days_color" not in st.session_state:
+    st.session_state.wet_days_color = "#3CB371"
+
+if "std_color" not in st.session_state:
+    st.session_state.std_color = "#9370DB"
+
+if "hist_color" not in st.session_state:
+    st.session_state.hist_color = "#4682B4"
+
+chart_options = [
+    "Monthly Rainfall",
+    "Maximum Daily Rainfall",
+    "Wet Days",
+    "Standard Deviation",
+    "Histogram"
+]
+
+selected_chart = st.sidebar.selectbox("Select Bar Chart", chart_options)
+
+if selected_chart == "Monthly Rainfall":
+    selected_month = st.sidebar.selectbox("Select Month", months)
+    selected_index = months.index(selected_month)
+    st.session_state.bar_colors[selected_index] = st.sidebar.color_picker(
+        f"{selected_month} Bar Colour",
+        st.session_state.bar_colors[selected_index]
+    )
+elif selected_chart == "Maximum Daily Rainfall":
+    st.session_state.max_daily_color = st.sidebar.color_picker(
+        "Maximum Daily Rainfall Colour",
+        st.session_state.max_daily_color
+    )
+elif selected_chart == "Wet Days":
+    st.session_state.wet_days_color = st.sidebar.color_picker(
+        "Wet Days Colour",
+        st.session_state.wet_days_color
+    )
+elif selected_chart == "Standard Deviation":
+    st.session_state.std_color = st.sidebar.color_picker(
+        "Standard Deviation Colour",
+        st.session_state.std_color
+    )
+elif selected_chart == "Histogram":
+    st.session_state.hist_color = st.sidebar.color_picker(
+        "Histogram Colour",
+        st.session_state.hist_color
+    )
+
+LINE_COLOR = st.sidebar.color_picker("Mean Line", "#000000")
+MIN_COLOR = st.sidebar.color_picker("Minimum", "#008000")
+MAX_COLOR = st.sidebar.color_picker("Maximum", "#FF0000")
+
+FIG_WIDTH = 14
+FIG_HEIGHT = 9
+
+# ============================================================
+# FILE UPLOAD
+# ============================================================
+
+uploaded_files = st.file_uploader(
+    "📁 Upload Excel file data hujan mengikut stesen AAWS",
+    type=["xlsx", "xls"],
+    accept_multiple_files=True
+)
+
+if not uploaded_files:
+    st.info("Sila upload sekurang-kurangnya satu fail Excel.")
+    st.markdown(
+        """
+        **Format data yang diperlukan:**
+        - Sheet dinamakan mengikut tahun, contoh `2016`, `2017`, ..., `2025`
+        - Header berada pada baris ke-7 Excel
+        - Column A = `hari`
+        - Column B:M = `Jan` hingga `Dec`
+        - `N.A.` / kosong = missing
+        - `0.0 mm` = data sah
+        """
+    )
+    st.stop()
+
+# ============================================================
+# FUNGSI PEMPROSESAN DATA ASAL
+# ============================================================
+
+def max_consecutive_missing(values):
+    is_missing = values.isna()
+    max_missing = 0
+    current_missing = 0
+    for missing in is_missing:
+        if missing:
+            current_missing += 1
+            if current_missing > max_missing:
+                max_missing = current_missing
+        else:
+            current_missing = 0
+    return max_missing
+
+def read_year_sheet(uploaded_file, year):
+    try:
+        file_bytes = uploaded_file.getvalue()
+        file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+        engine = "xlrd" if file_ext == ".xls" else "openpyxl"
+        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=str(year), header=6, engine=engine)
+    except Exception as e:
+        return None, str(e)
+
+    if df is None or df.empty:
+        return None, "Sheet kosong."
+
+    if df.shape[1] < 13:
+        return None, f"Bilangan column tidak mencukupi ({df.shape[1]} column dikesan). Minimum 13 column diperlukan."
+
+    df = df.iloc[:, :13].copy()
+    df.columns = ["hari", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    df["hari"] = pd.to_numeric(df["hari"], errors="coerce")
+    df = df[df["hari"].between(1, 31)].copy()
+
+    for month in months:
+        df[month] = pd.to_numeric(df[month], errors="coerce")
+        df.loc[df[month] < VALID_MIN, month] = np.nan
+
+    df["Year"] = int(year)
+    return df, None
+
+def analyze_file(uploaded_file):
+    file_name = os.path.splitext(uploaded_file.name)[0]
+    original_file_name = uploaded_file.name
+    daily_results = []
+    read_errors = []
+
+    for year in years:
+        df, error = read_year_sheet(uploaded_file, year)
+        if df is not None:
+            daily_results.append(df)
+        else:
+            read_errors.append({"Year": int(year), "Error": error})
+
+    if len(daily_results) == 0:
+        return {
+            "success": False,
+            "file_name": file_name,
+            "original_file_name": original_file_name,
+            "error": "Tiada sheet tahun berjaya dibaca."
+        }
+
+    all_daily = pd.concat(daily_results, ignore_index=True)
+
+    for month in months:
+        all_daily.loc[all_daily[month] < VALID_MIN, month] = np.nan
+
+    suspect_records = []
+    extreme_records = []
+
+    for _, row in all_daily.iterrows():
+        year = int(row["Year"])
+        day = int(row["hari"])
+        for month in months:
+            value = row[month]
+            if pd.isna(value):
+                continue
+            if value > EXTREME_RAINFALL:
+                extreme_records.append({"Year": year, "Day": day, "Month": month, "Rainfall (mm)": value, "Status": "EXTREME - DOUBLE CHECK"})
+            elif value > SUSPECT_RAINFALL:
+                suspect_records.append({"Year": year, "Day": day, "Month": month, "Rainfall (mm)": value, "Status": "SUSPECT - SEMAK"})
+
+    suspect_df = pd.DataFrame(suspect_records, columns=["Year", "Day", "Month", "Rainfall (mm)", "Status"])
+    extreme_df = pd.DataFrame(extreme_records, columns=["Year", "Day", "Month", "Rainfall (mm)", "Status"])
+
+    available_years = sorted(all_daily["Year"].unique())
+    yearly_monthly_total = pd.DataFrame(index=available_years, columns=months, dtype=float)
+    monthly_missing_count = pd.DataFrame(index=available_years, columns=months, dtype=float)
+    monthly_valid_count = pd.DataFrame(index=available_years, columns=months, dtype=float)
+    monthly_max_consecutive_missing = pd.DataFrame(index=available_years, columns=months, dtype=float)
+    monthly_qc_status = pd.DataFrame(index=available_years, columns=months, dtype=object)
+
+    for year in available_years:
+        year_data = all_daily[all_daily["Year"] == year]
+        for month in months:
+            month_index = months.index(month) + 1
+            days_expected = calendar.monthrange(int(year), month_index)[1]
+            values = year_data[month].iloc[:days_expected].copy()
+            valid_values = values[values.notna() & (values >= VALID_MIN)]
+            valid_count = len(valid_values)
+            missing_count = days_expected - valid_count
+            max_consecutive = max_consecutive_missing(values)
+
+            monthly_valid_count.loc[year, month] = valid_count
+            monthly_missing_count.loc[year, month] = missing_count
+            monthly_max_consecutive_missing.loc[year, month] = max_consecutive
+
+            if missing_count <= MAX_MISSING_DAYS and max_consecutive <= MAX_CONSECUTIVE_MISSING:
+                yearly_monthly_total.loc[year, month] = valid_values.sum()
+                monthly_qc_status.loc[year, month] = "ACCEPT"
+            else:
+                yearly_monthly_total.loc[year, month] = np.nan
+                if missing_count > MAX_MISSING_DAYS:
+                    monthly_qc_status.loc[year, month] = f"REJECT: >{MAX_MISSING_DAYS} MISSING"
+                elif max_consecutive > MAX_CONSECUTIVE_MISSING:
+                    monthly_qc_status.loc[year, month] = f"REJECT: >{MAX_CONSECUTIVE_MISSING} CONSECUTIVE MISSING"
+                else:
+                    monthly_qc_status.loc[year, month] = "REJECT"
+
+    if target_year not in yearly_monthly_total.index:
+        return {
+            "success": False,
+            "file_name": file_name,
+            "original_file_name": original_file_name,
+            "error": f"Data tahun {target_year} tidak dijumpai.",
+            "available_years": available_years
+        }
+
+    rainfall_target = yearly_monthly_total.loc[target_year].reindex(months)
+    mean_monthly_total = yearly_monthly_total.mean(axis=0, skipna=True).reindex(months)
+
+    anomaly_percent = ((rainfall_target - mean_monthly_total) / mean_monthly_total) * 100
+    anomaly_percent[mean_monthly_total == 0] = np.nan
+
+    valid_target = rainfall_target.dropna()
+    min_target_month, min_target_value = (valid_target.idxmin(), valid_target.min()) if len(valid_target) > 0 else (None, None)
+    max_target_month, max_target_value = (valid_target.idxmax(), valid_target.max()) if len(valid_target) > 0 else (None, None)
+
+    valid_mean = mean_monthly_total.dropna()
+    min_mean_month, min_mean_value = (valid_mean.idxmin(), valid_mean.min()) if len(valid_mean) > 0 else (None, None)
+    max_mean_month, max_mean_value = (valid_mean.idxmax(), valid_mean.max()) if len(valid_mean) > 0 else (None, None)
+
+    median_daily, std_daily, max_daily, min_daily, wet_days, valid_data_percent, suspect_count, extreme_count = [], [], [], [], [], [], [], []
+    target_data = all_daily[all_daily["Year"] == target_year].copy()
+
+    for month in months:
+        month_index = months.index(month) + 1
+        days_expected = calendar.monthrange(target_year, month_index)[1]
+        raw_values = target_data[month].iloc[:days_expected].copy()
+        qc_values = raw_values[raw_values.notna() & (raw_values >= VALID_MIN)]
+        values = qc_values[qc_values >= WET_DAY_MIN]
+
+        valid_data_percent.append((len(qc_values) / days_expected) * 100)
+        median_daily.append(values.median() if len(values) > 0 else np.nan)
+        std_daily.append(values.std() if len(values) > 1 else np.nan)
+        max_daily.append(values.max() if len(values) > 0 else np.nan)
+        min_daily.append(values.min() if len(values) > 0 else np.nan)
+        wet_days.append((qc_values >= WET_DAY_MIN).sum())
+        suspect_count.append((values > SUSPECT_RAINFALL).sum())
+        extreme_count.append((values > EXTREME_RAINFALL).sum())
+
+    analysis_table = pd.DataFrame({
+        "Month": months,
+        f"Total {target_year} (mm)": rainfall_target.values,
+        f"Mean {YEAR_RANGE_TEXT} (mm)": mean_monthly_total.values,
+        f"Anomaly {target_year} (%)": anomaly_percent.values,
+        "Median Daily (>=0.1 mm)": median_daily,
+        "SD Daily (>=0.1 mm)": std_daily,
+        "Maximum Daily (>=0.1 mm)": max_daily,
+        "Minimum Daily (>=0.1 mm)": min_daily,
+        "Wet Days (>=0.1 mm)": wet_days,
+        "Suspect Days (>150 mm)": suspect_count,
+        "Extreme Days (>250 mm)": extreme_count,
+        "Valid Data (>=0.0 mm) (%)": valid_data_percent
+    })
+
+    hist_values, pie_values = [], []
+    for month in months:
+        month_index = months.index(month) + 1
+        days_expected = calendar.monthrange(target_year, month_index)[1]
+        raw_values = target_data[month].iloc[:days_expected].copy()
+        values = raw_values[raw_values.notna() & (raw_values >= VALID_MIN)]
+        pie_values.extend(values.tolist())
+        hist_values.extend(values[values >= WET_DAY_MIN].tolist())
+
+    no_rain = sum(v == 0.0 for v in pie_values)
+    light_rain = sum(0.1 <= v <= 2.5 for v in pie_values)
+    moderate_rain = sum(2.5 < v <= 10.0 for v in pie_values)
+    heavy_rain = sum(10.0 < v <= 50.0 for v in pie_values)
+    extreme_rain = sum(v > 50.0 for v in pie_values)
+
+    category_values = [no_rain, light_rain, moderate_rain, heavy_rain, extreme_rain]
+    category_labels = ["No Rain (0.0 mm)", "Light Rain (0.1–2.5 mm)", "Moderate Rain (>2.5–10.0 mm)", "Heavy Rain (>10.0-50.0 mm)", "Extreme Rain (>50 mm)"]
+
+    return {
+        "success": True,
+        "file_name": file_name,
+        "original_file_name": original_file_name,
+        "all_daily": all_daily,
+        "yearly_monthly_total": yearly_monthly_total,
+        "monthly_missing_count": monthly_missing_count,
+        "monthly_valid_count": monthly_valid_count,
+        "monthly_max_consecutive_missing": monthly_max_consecutive_missing,
+        "monthly_qc_status": monthly_qc_status,
+        "rainfall_target": rainfall_target,
+        "mean_monthly_total": mean_monthly_total,
+        "anomaly_percent": anomaly_percent,
+        "min_target_month": min_target_month, "min_target_value": min_target_value,
+        "max_target_month": max_target_month, "max_target_value": max_target_value,
+        "min_mean_month": min_mean_month, "min_mean_value": min_mean_value,
+        "max_mean_month": max_mean_month, "max_mean_value": max_mean_value,
+        "median_daily": median_daily, "std_daily": std_daily, "max_daily": max_daily, "min_daily": min_daily,
+        "wet_days": wet_days, "valid_data_percent": valid_data_percent,
+        "suspect_count": suspect_count, "extreme_count": extreme_count,
+        "analysis_table": analysis_table, "suspect_df": suspect_df, "extreme_df": extreme_df,
+        "hist_values": hist_values, "category_values": category_values, "category_labels": category_labels,
+        "read_errors": read_errors
     }
-}
 
-month_names_en = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+# ============================================================
+# PROCESS ALL UPLOADED FILES
+# ============================================================
 
-# =========================================================
-# 3. SIDEBAR & TETAPAN KAWALAN
-# =========================================================
-with st.sidebar:
-    selected_lang = st.selectbox("🌐 Bahasa / Language", options=["Bahasa Melayu", "English"])
-    lang_key = "BM" if selected_lang == "Bahasa Melayu" else "EN"
-    t = TEXTS[lang_key]
+with st.spinner("⏳ Sedang memproses semua fail Excel..."):
+    results = []
+    progress_bar = st.progress(0)
+    for i, uploaded_file in enumerate(uploaded_files):
+        result = analyze_file(uploaded_file)
+        results.append(result)
+        progress_bar.progress(int(((i + 1) / len(uploaded_files)) * 100))
+    progress_bar.empty()
 
-    with st.expander(t["manual_header"], expanded=False):
-        st.markdown(t["manual_desc"])
+successful_results = [r for r in results if r.get("success", False)]
+failed_results = [r for r in results if not r.get("success", False)]
+
+st.success(f"✅ {len(successful_results)} daripada {len(uploaded_files)} fail berjaya dianalisis.")
+
+if failed_results:
+    st.warning(f"⚠️ {len(failed_results)} fail tidak berjaya dianalisis.")
+    for result in failed_results:
+        st.error(f"{result.get('original_file_name', 'Unknown')}: {result.get('error', 'Unknown error')}")
+
+if not successful_results:
+    st.stop()
+
+# ============================================================
+# GLOBAL AUTO Y-AXIS
+# ============================================================
+
+global_max_total, global_max_mean = 0, 0
+max_total_file, max_total_month = None, None
+max_mean_file, max_mean_month = None, None
+
+for result in successful_results:
+    rainfall_target = result["rainfall_target"]
+    mean_monthly_total = result["mean_monthly_total"]
+    if rainfall_target.notna().any():
+        local_max = rainfall_target.max()
+        if local_max > global_max_total:
+            global_max_total = local_max
+            max_total_file = result["original_file_name"]
+            max_total_month = rainfall_target.idxmax()
+    if mean_monthly_total.notna().any():
+        local_max = mean_monthly_total.max()
+        if local_max > global_max_mean:
+            global_max_mean = local_max
+            max_mean_file = result["original_file_name"]
+            max_mean_month = mean_monthly_total.idxmax()
+
+selected_max = max(global_max_total, global_max_mean)
+RAINFALL_MAX = (int(selected_max / 100) + 1) * 100 if selected_max > 0 else 100
+
+# ============================================================
+# GLOBAL SUMMARY
+# ============================================================
+
+st.subheader("📌 Overall Analysis Summary")
+summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+summary_col1.metric("Files Analysed", len(successful_results))
+summary_col2.metric("Target Year", target_year)
+summary_col3.metric("Climatology", YEAR_RANGE_TEXT)
+summary_col4.metric("Auto Y-Axis Maximum", f"{RAINFALL_MAX:.0f} mm")
+
+# ============================================================
+# CIRI BAHARU: PERBANDINGAN BERBILANG STESEN (MULTI-STATION)
+# ============================================================
+if len(successful_results) >= 2:
+    with st.expander("📊 Perbandingan Merentas Berbilang Stesen (Multi-Station Overlay)", expanded=False):
+        st.markdown("Bandingkan profil purata bulanan dan jumlah tahunan antara beberapa stesen serentak.")
+        st_names = [r["file_name"] for r in successful_results]
+        selected_multi = st.multiselect("Pilih stesen untuk dibandingkan:", st_names, default=st_names[:min(4, len(st_names))])
+        
+        if len(selected_multi) >= 2:
+            comp_fig = go.Figure()
+            for s_name in selected_multi:
+                s_res = next(r for r in successful_results if r["file_name"] == s_name)
+                comp_fig.add_trace(go.Scatter(
+                    x=months,
+                    y=s_res["mean_monthly_total"].values,
+                    mode='lines+markers',
+                    name=s_name
+                ))
+            comp_fig.update_layout(
+                title=f"Perbandingan Purata Hujan Bulanan ({YEAR_RANGE_TEXT})",
+                xaxis_title="Bulan",
+                yaxis_title="Purata Hujan (mm)",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(comp_fig, use_container_width=True)
+
+# ============================================================
+# DISPLAY EACH FILE
+# ============================================================
+
+for result in successful_results:
+    file_name = result["file_name"]
+    original_file_name = result["original_file_name"]
+    all_daily = result["all_daily"]
+    yearly_monthly_total = result["yearly_monthly_total"]
+    monthly_missing_count = result["monthly_missing_count"]
+    monthly_valid_count = result["monthly_valid_count"]
+    monthly_max_consecutive_missing = result["monthly_max_consecutive_missing"]
+    monthly_qc_status = result["monthly_qc_status"]
+    rainfall_target = result["rainfall_target"]
+    mean_monthly_total = result["mean_monthly_total"]
+    anomaly_percent = result["anomaly_percent"]
+    min_target_month = result["min_target_month"]
+    min_target_value = result["min_target_value"]
+    max_target_month = result["max_target_month"]
+    max_target_value = result["max_target_value"]
+    min_mean_month = result["min_mean_month"]
+    min_mean_value = result["min_mean_value"]
+    max_mean_month = result["max_mean_month"]
+    max_mean_value = result["max_mean_value"]
+    median_daily = result["median_daily"]
+    std_daily = result["std_daily"]
+    max_daily = result["max_daily"]
+    min_daily = result["min_daily"]
+    wet_days = result["wet_days"]
+    valid_data_percent = result["valid_data_percent"]
+    analysis_table = result["analysis_table"]
+    suspect_df = result["suspect_df"]
+    extreme_df = result["extreme_df"]
+    hist_values = result["hist_values"]
+    category_values = result["category_values"]
+    category_labels = result["category_labels"]
+    read_errors = result["read_errors"]
 
     st.divider()
-    st.markdown(f"### {t['sidebar_header']}")
+    st.header(f"📁 {original_file_name}")
 
-    qc_rule = st.radio(
-        t["qc_mode_label"],
-        options=["WMO Standard (11/5 Rule)", "Strict Rule (5/3 Rule)", "No Filter (Raw Data)"],
-        index=0
+    if read_errors:
+        with st.expander("⚠️ Sheet yang tidak berjaya dibaca"):
+            st.dataframe(pd.DataFrame(read_errors), use_container_width=True, hide_index=True)
+
+    # Basic Metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric(f"Minimum {target_year}", f"{min_target_value:.2f} mm" if min_target_value is not None else "N.A.", min_target_month)
+    col2.metric(f"Maximum {target_year}", f"{max_target_value:.2f} mm" if max_target_value is not None else "N.A.", max_target_month)
+    col3.metric("Minimum Mean", f"{min_mean_value:.2f} mm" if min_mean_value is not None else "N.A.", min_mean_month)
+    col4.metric("Maximum Mean", f"{max_mean_value:.2f} mm" if max_mean_value is not None else "N.A.", max_mean_month)
+
+    # QC Summary Metrics
+    qc_col1, qc_col2, qc_col3 = st.columns(3)
+    qc_col1.metric("Suspect Records", len(suspect_df))
+    qc_col2.metric("Extreme Records", len(extreme_df))
+    qc_col3.metric("Valid Daily Records", int(all_daily[months].notna().sum().sum()))
+
+    # ========================================================
+    # CIRI BAHARU: PILIHAN MOD PERSEMBAHAN (AWAM VS SAINTIFIK)
+    # ========================================================
+    view_mode = st.radio(
+        f"Pilih Mod Paparan Stesen ({file_name}):",
+        ["📊 Paparan Penuh Standard (11 Tab Analisis Lengkap)", "🌐 Pandangan Umum (Public Dashboard)", "🔬 Analisis Trend Saintifik (Regresi Linear)"],
+        horizontal=True,
+        key=f"mode_{file_name}"
     )
 
-    st.markdown("---")
-    st.markdown("#### 🌧️ Had Ambang QC (Thresholds)")
-    WET_DAY_THRES = st.number_input("Had Hari Berhujan (mm)", value=0.1, step=0.05)
-    SUSPECT_THRES = st.number_input("Had Hujan Suspect (mm)", value=150.0, step=10.0)
-    EXTREME_THRES = st.number_input("Had Hujan Ekstrem (mm)", value=250.0, step=10.0)
-
-    st.markdown("---")
-    uploaded_files = st.file_uploader(
-        t["upload_label"],
-        type=["xls", "xlsx"],
-        accept_multiple_files=True
-    )
-
-# =========================================================
-# 4. PENGEPALA APLIKASI
-# =========================================================
-header_col1, header_col2 = st.columns([1, 7])
-with header_col1:
-    st.markdown("<h1 style='font-size: 55px; margin: 0;'>🌤️</h1>", unsafe_allow_html=True)
-with header_col2:
-    st.markdown(f"### **{t['title']}**")
-    st.caption(f"🏛️ {t['subtitle']} | Standard WMO-No. 1203")
-
-st.divider()
-
-# =========================================================
-# 5. ENJIN PEMPROSESAN DATA & QC
-# =========================================================
-def clean_station_name(val):
-    val = str(val).replace(":", "").strip()
-    return val.lstrip(': -_').upper() if val else "UNKNOWN_STATION"
-
-def detect_parameter(header_text):
-    text_lower = header_text.lower()
-    if any(k in text_lower for k in ['temp', 'suhu', 'celsius', '°c']):
-        return "Temperature"
-    return "Rainfall"
-
-def process_aaws_files(files):
-    all_data = {"Rainfall": {}, "Temperature": {}}
-    for file in files:
-        try:
-            xls = pd.ExcelFile(file)
-            for sheet in xls.sheet_names:
-                if str(sheet).lower().strip() in ['datalist', 'info', 'summary']:
-                    continue
-                df_raw = pd.read_excel(xls, sheet_name=sheet, header=None)
-                header_dump = " ".join([str(val) for val in df_raw.iloc[:12, :].values.flatten()])
-                param_type = detect_parameter(header_dump)
-                
-                # Cari baris data bermula
-                start_row = 11
-                for r in range(min(15, len(df_raw))):
-                    row_txt = " ".join([str(x).lower() for x in df_raw.iloc[r].tolist() if pd.notna(x)])
-                    if ("year" in row_txt or "tahun" in row_txt) and ("month" in row_txt or "bulan" in row_txt):
-                        start_row = r + 1
-                        break
-                        
-                st_name = ""
-                for r in range(min(8, len(df_raw))):
-                    for c in range(min(6, len(df_raw.columns))):
-                        cell_str = str(df_raw.iloc[r, c]).strip()
-                        if any(k in cell_str.lower() for k in ['station', 'stesen']):
-                            if ':' in cell_str and len(cell_str.split(':', 1)[1].strip()) > 1:
-                                st_name = cell_str.split(':', 1)[1].strip()
-                            elif c + 1 < len(df_raw.columns) and pd.notna(df_raw.iloc[r, c + 1]):
-                                st_name = str(df_raw.iloc[r, c + 1]).strip()
-                                
-                if not st_name:
-                    st_name = str(sheet).strip()
-                st_name = clean_station_name(st_name)
-                
-                data = df_raw.iloc[start_row:].copy().iloc[:, :4]
-                data.columns = ['Year', 'Month', 'Day', 'Value']
-                
-                data['Value'] = data['Value'].astype(str).str.strip().str.upper()
-                data['Value'] = data['Value'].replace(['TR', 'TRACE'], '0.1')
-                
-                data['Year'] = pd.to_numeric(data['Year'], errors='coerce')
-                data['Month'] = pd.to_numeric(data['Month'], errors='coerce')
-                data['Day'] = pd.to_numeric(data['Day'], errors='coerce')
-                data['Value_Numeric'] = pd.to_numeric(data['Value'], errors='coerce')
-                data['Value_Display'] = data['Value']
-                
-                data = data.dropna(subset=['Year', 'Month', 'Day'])
-                data = data[(data['Year'] >= 1900) & (data['Year'] <= 2100)]
-                data['Year'] = data['Year'].astype(int)
-                data['Month'] = data['Month'].astype(int)
-                data['Day'] = data['Day'].astype(int)
-                
-                if not data.empty:
-                    target_dict = all_data[param_type]
-                    if st_name in target_dict:
-                        comb = pd.concat([target_dict[st_name], data], ignore_index=True)
-                        target_dict[st_name] = comb.drop_duplicates(subset=['Year', 'Month', 'Day'])
-                    else:
-                        target_dict[st_name] = data
-        except Exception as e:
-            st.error(f"Ralat memproses {file.name}: {e}")
-    return all_data
-
-def evaluate_qc(series, rule):
-    missing = series.isna().sum()
-    is_na = series.isna().astype(int)
-    blocks = (is_na != is_na.shift()).cumsum()
-    consec = is_na.groupby(blocks).transform('sum') * is_na
-    max_consec = consec.max() if not consec.empty else 0
-    
-    if rule == "WMO Standard (11/5 Rule)":
-        is_valid = not (missing >= 11 or max_consec >= 5)
-    elif rule == "Strict Rule (5/3 Rule)":
-        is_valid = not (missing > 5 or max_consec > 3)
-    else:
-        is_valid = True
-    return is_valid, missing, max_consec
-
-def generate_qc_table(df_stesen, rule):
-    records = []
-    for yr in sorted(df_stesen['Year'].unique()):
-        df_yr = df_stesen[df_stesen['Year'] == yr]
-        pivot = df_yr.pivot(index='Day', columns='Month', values='Value_Numeric').reindex(index=range(1, 32), columns=range(1, 13))
-        for m in range(1, 13):
-            col = pivot[m]
-            is_valid, miss, consec = evaluate_qc(col, rule)
-            records.append({
-                'Year': yr,
-                'Month': m,
-                'Month_Name': month_names_en[m-1],
-                'Missing_Days': miss,
-                'Max_Consecutive_Missing': consec,
-                'Is_Valid_WMO': is_valid
-            })
-    return pd.DataFrame(records)
-
-def generate_station_excel(df_stesen, st_name, rule, param_mode):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        for yr in sorted(df_stesen['Year'].unique()):
-            df_yr = df_stesen[df_stesen['Year'] == yr]
-            pivot_num = df_yr.pivot(index='Day', columns='Month', values='Value_Numeric').reindex(index=range(1, 32), columns=range(1, 13))
-            pivot_dsp = df_yr.pivot(index='Day', columns='Month', values='Value_Display').reindex(index=range(1, 32), columns=range(1, 13))
+    if view_mode == "🌐 Pandangan Umum (Public Dashboard)":
+        st.subheader(f"🌐 Ringkasan Iklim Mesra Awam — {file_name}")
+        valid_means = mean_monthly_total.dropna()
+        if len(valid_means) > 0:
+            wet_m = valid_means.idxmax()
+            dry_m = valid_means.idxmin()
             
-            s1, s2, s3, s4 = [], [], [], []
-            for m in range(1, 13):
-                col = pivot_num[m]
-                is_valid, _, _ = evaluate_qc(col, rule)
-                if is_valid and col.notna().any():
-                    if param_mode == "Rainfall":
-                        tot = col.sum(skipna=True)
-                        s1.append(round(tot, 1) if pd.notna(tot) else "N.A")
-                        s2.append(int((col >= 0.1).sum()))
-                        max_v = col.max(skipna=True)
-                        s3.append(round(max_v, 1) if pd.notna(max_v) else "N.A")
-                        try:
-                            s4.append(int(col.idxmax(skipna=True)))
-                        except Exception:
-                            s4.append("-")
-                    else:
-                        s1.append(round(col.mean(skipna=True), 1))
-                        s2.append(round(col.max(skipna=True), 1))
-                        s3.append(round(col.min(skipna=True), 1))
-                        s4.append(round(col.max() - col.min(), 1) if pd.notna(col.max()) else "-")
-                else:
-                    s1.append("N.A (Incomplete)")
-                    s2.append("N.A")
-                    s3.append("N.A")
-                    s4.append("-")
-                    
-            rep = pivot_dsp.copy()
-            if param_mode == "Rainfall":
-                rep.loc['TOTAL (mm)'] = s1
-                rep.loc['No. Of Days (>=0.1mm)'] = s2
-                rep.loc['Highest Fall (mm)'] = s3
-                rep.loc['Date of Highest'] = s4
-            else:
-                rep.loc['MEAN TEMP (°C)'] = s1
-                rep.loc['MAX TEMP (°C)'] = s2
-                rep.loc['MIN TEMP (°C)'] = s3
-                rep.loc['TEMP RANGE (°C)'] = s4
-                
-            rep.columns = month_names_en
-            rep.index.name = "DATE"
-            rep.to_excel(writer, sheet_name=str(yr)[:31])
-    output.seek(0)
-    return output
+            c_p1, c_p2, c_p3 = st.columns(3)
+            c_p1.metric("Purata Hujan Tahunan", f"{valid_means.sum():.1f} mm")
+            c_p2.metric("Bulan Paling Basah", f"{wet_m} ({valid_means.max():.1f} mm)")
+            c_p3.metric("Bulan Paling Kering", f"{dry_m} ({valid_means.min():.1f} mm)")
 
-all_data = process_aaws_files(uploaded_files) if uploaded_files else {"Rainfall": {}, "Temperature": {}}
+            cp_left, cp_right = st.columns([6, 4])
+            with cp_left:
+                fig_pub = px.bar(x=months, y=mean_monthly_total.values, text=mean_monthly_total.values, labels={'x':'Bulan', 'y':'Purata Hujan (mm)'}, title="Purata Penerimaan Hujan Bulanan")
+                fig_pub.update_traces(texttemplate='%{text:.1f} mm', textposition='outside')
+                st.plotly_chart(fig_pub, use_container_width=True)
+            with cp_right:
+                tot_days = sum(category_values)
+                rain_days = tot_days - category_values[0]
+                donut_df = pd.DataFrame({'Kategori': ['Hari Berhujan (≥0.1mm)', 'Hari Kering (0.0mm)'], 'Jumlah': [rain_days, category_values[0]]})
+                st.plotly_chart(px.pie(donut_df, names='Kategori', values='Jumlah', hole=0.5, color_discrete_sequence=['#1f77b4', '#ffa500']), use_container_width=True)
 
-# =========================================================
-# 6. NAVIGASI TAB UTAMA
-# =========================================================
-tab_main_analysis, tab_wmo_qc = st.tabs([t["nav_analysis"], t["nav_qc"]])
-
-# =========================================================
-# TAB 1: ANALISIS PARAMETER
-# =========================================================
-with tab_main_analysis:
-    if uploaded_files:
-        col_c1, col_c2, col_c3 = st.columns([1.5, 2, 1.5])
-        with col_c1:
-            chosen_p = st.radio(t["select_param"], [t["param_rain"], t["param_temp"]], horizontal=True)
-            param_mode = "Rainfall" if chosen_p == t["param_rain"] else "Temperature"
-            unit = "mm" if param_mode == "Rainfall" else "°C"
-            
-        st_dict = all_data.get(param_mode, {})
-        if not st_dict:
-            st.warning("⚠️ Tiada data untuk parameter ini dikesan dalam fail yang dimuat naik.")
+    elif view_mode == "🔬 Analisis Trend Saintifik (Regresi Linear)":
+        st.subheader(f"🔬 Analisis Trend Jangka Panjang — {file_name}")
+        ann_totals = yearly_monthly_total.sum(axis=1, min_count=10).dropna().reset_index()
+        ann_totals.columns = ['Year', 'Rainfall']
+        if len(ann_totals) > 1:
+            z = np.polyfit(ann_totals['Year'], ann_totals['Rainfall'], 1)
+            p = np.poly1d(z)
+            ann_totals['Trend Line (y=mx+c)'] = p(ann_totals['Year'])
+            fig_trend = px.line(
+                ann_totals, x='Year', y=['Rainfall', 'Trend Line (y=mx+c)'],
+                markers=True,
+                title=f"Trend Hujan Tahunan dengan Kecerunan Regresi (m = {z[0]:.2f} mm/tahun)",
+                labels={'value': 'Jumlah Hujan (mm)', 'Year': 'Tahun', 'variable': 'Petunjuk'},
+                color_discrete_map={'Rainfall': '#1f77b4', 'Trend Line (y=mx+c)': '#ff7f0e'}
+            )
+            st.plotly_chart(fig_trend, use_container_width=True)
         else:
-            with col_c2:
-                selected_st = st.selectbox(t["select_station"], list(st_dict.keys()))
-            with col_c3:
-                st.write("")
-                zip_buf = io.BytesIO()
-                with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for s_name, s_df in st_dict.items():
-                        x_bytes = generate_station_excel(s_df, s_name, qc_rule, param_mode)
-                        zf.writestr(f"{param_mode}_{s_name}.xlsx", x_bytes.getvalue())
-                zip_buf.seek(0)
-                st.download_button(
-                    t["download_zip"].format(param=param_mode),
-                    zip_buf,
-                    file_name=t["zip_filename"].format(param=param_mode),
-                    mime="application/zip",
-                    type="primary",
-                    use_container_width=True
-                )
-                
-            df_curr = st_dict[selected_st]
-            qc_df = generate_qc_table(df_curr, qc_rule)
-            
-            # Pengiraan Kelengkapan WMO
-            valid_m_cnt = qc_df['Is_Valid_WMO'].sum()
-            total_m_cnt = len(qc_df)
-            wmo_score = (valid_m_cnt / total_m_cnt) * 100 if total_m_cnt > 0 else 0
-            
-            # Semakan Suspect & Extreme
-            suspect_records = df_curr[df_curr['Value_Numeric'] > SUSPECT_THRES]
-            extreme_records = df_curr[df_curr['Value_Numeric'] > EXTREME_THRES]
-            
-            # KPI Hero Cards
-            with st.container(border=True):
-                k1, k2, k3, k4, k5 = st.columns(5)
-                k1.metric(t["station_name"], selected_st)
-                k2.metric(t["record_period"], f"{df_curr['Year'].min()}–{df_curr['Year'].max()}")
-                k3.metric(t["completeness_rate"], f"{wmo_score:.1f}%")
-                k4.metric("Suspect (>150mm)", f"{len(suspect_records)} Rekod")
-                k5.metric("Extreme (>250mm)", f"{len(extreme_records)} Rekod")
-                
-            # 4 Mod Paparan Utama
-            sub_tabs = st.tabs([
-                t["view_public"],
-                t["view_scientific"],
-                t["view_compare"],
-                t["view_matrix"]
-            ])
-            
-            # -------------------------------------------------
-            # 1. PANDANGAN AWAM (PUBLIC DASHBOARD)
-            # -------------------------------------------------
-            with sub_tabs[0]:
-                st.subheader(f"🌐 Dashboard Awam — Stesen {selected_st}")
-                
-                # Agregat Bulanan (Hanya Bulan Sah WMO)
-                m_totals = df_curr.groupby(['Year', 'Month'])['Value_Numeric'].sum(min_count=1).reset_index()
-                m_totals = m_totals.merge(qc_df, on=['Year', 'Month'])
-                m_valid = m_totals[m_totals['Is_Valid_WMO'] == True]
-                
-                summary_pub = m_valid.groupby('Month')['Value_Numeric'].agg(['mean', 'max', 'min']).reset_index()
-                summary_pub['Bulan'] = summary_pub['Month'].apply(lambda x: month_names_en[x-1])
-                
-                wettest = summary_pub.loc[summary_pub['mean'].idxmax()]
-                driest = summary_pub.loc[summary_pub['mean'].idxmin()]
-                
-                p_c1, p_c2, p_c3, p_c4 = st.columns(4)
-                p_c1.metric("Purata Hujan Tahunan Normal", f"{summary_pub['mean'].sum():.1f} {unit}")
-                p_c2.metric("Bulan Paling Basah", f"{wettest['Bulan']} ({wettest['mean']:.1f} {unit})")
-                p_c3.metric("Bulan Paling Kering", f"{driest['Bulan']} ({driest['mean']:.1f} {unit})")
-                p_c4.metric("Rekod Harian Tertinggi", f"{df_curr['Value_Numeric'].max():.1f} {unit}")
-                
-                col_p_left, col_p_right = st.columns([6, 4])
-                with col_p_left:
-                    st.markdown("### 🌧️ Purata Penerimaan Hujan Bulanan Normal")
-                    fig_pub = px.bar(
-                        summary_pub, x='Bulan', y='mean', text='mean',
-                        labels={'mean': f'Purata ({unit})', 'Bulan': 'Bulan'},
-                        color='mean', color_continuous_scale='Blues'
-                    )
-                    fig_pub.update_traces(texttemplate='%{text:.1f} ' + unit, textposition='outside')
-                    st.plotly_chart(fig_pub, use_container_width=True)
-                    
-                with col_p_right:
-                    st.markdown("### ☀️ Nisbah Hari Berhujan vs Hari Kering")
-                    rainy = (df_curr['Value_Numeric'] >= WET_DAY_THRES).sum()
-                    dry = (df_curr['Value_Numeric'] < WET_DAY_THRES).sum()
-                    donut_df = pd.DataFrame({
-                        'Kategori': [f'Hari Berhujan (≥{WET_DAY_THRES}mm)', 'Hari Kering (0.0mm)'],
-                        'Jumlah': [rainy, dry]
-                    })
-                    fig_pie = px.pie(donut_df, names='Kategori', values='Jumlah', hole=0.5, color_discrete_sequence=['#1f77b4', '#ffa500'])
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                    
-                # Carta Kategori Hujan
-                st.markdown("### 🥧 Taburan Mengikut Kategori Keamatan Hujan (MetMalaysia)")
-                r_vals = df_curr['Value_Numeric'].dropna()
-                cat_df = pd.DataFrame({
-                    'Kategori': ['Tiada Hujan (0.0mm)', 'Hujan Ringan (0.1–2.5mm)', 'Hujan Sederhana (2.6–10.0mm)', 'Hujan Lebat (10.1–50.0mm)', 'Hujan Sangat Lebat (>50mm)'],
-                    'Bilangan Hari': [
-                        (r_vals == 0).sum(),
-                        ((r_vals >= 0.1) & (r_vals <= 2.5)).sum(),
-                        ((r_vals > 2.5) & (r_vals <= 10.0)).sum(),
-                        ((r_vals > 10.0) & (r_vals <= 50.0)).sum(),
-                        (r_vals > 50.0).sum()
-                    ]
-                })
-                fig_cat = px.bar(cat_df, x='Kategori', y='Bilangan Hari', color='Kategori', text='Bilangan Hari')
-                st.plotly_chart(fig_cat, use_container_width=True)
+            st.info("Data tahunan tidak mencukupi untuk regresi linear.")
 
-            # -------------------------------------------------
-            # 2. PANDANGAN SAINTIFIK (SCIENTIFIC ANALYSIS)
-            # -------------------------------------------------
-            with sub_tabs[1]:
-                st.subheader(f"🔬 Analisis Iklim Saintifik — Stesen {selected_st}")
-                
-                # 1. Profil Normal & Ribbon Julat Min-Maks
-                st.markdown("#### 1. Profil Purata Bulanan & Julat Sejarah Ekstrem (Range Envelope)")
-                m_stats = df_curr.groupby('Month')['Value_Numeric'].agg(['mean', 'min', 'max']).reset_index()
-                m_stats['Bulan'] = m_stats['Month'].apply(lambda x: month_names_en[x-1])
-                
-                fig_ribbon = go.Figure()
-                fig_ribbon.add_trace(go.Scatter(x=m_stats['Bulan'], y=m_stats['max'], mode='lines', line=dict(width=0), showlegend=False))
-                fig_ribbon.add_trace(go.Scatter(
-                    x=m_stats['Bulan'], y=m_stats['min'], mode='lines', line=dict(width=0), fill='tonexty',
-                    fillcolor='rgba(31, 119, 180, 0.2)', name='Julat Ekstrem (Min-Max)'
-                ))
-                fig_ribbon.add_trace(go.Scatter(
-                    x=m_stats['Bulan'], y=m_stats['mean'], mode='lines+markers', name=f'Purata Normal ({param_mode})',
-                    line=dict(color='#1f77b4', width=3), marker=dict(size=8)
-                ))
-                fig_ribbon.update_layout(xaxis_title="Bulan", yaxis_title=f"{param_mode} ({unit})")
-                st.plotly_chart(fig_ribbon, use_container_width=True)
-                
-                # 2. Boxplot Taburan Hujan Bulanan
-                st.markdown("#### 2. Boxplot Taburan Hujan Bulanan (Variabiliti & Outliers)")
-                df_curr['Month_Name'] = df_curr['Month'].apply(lambda x: month_names_en[x-1])
-                fig_box = px.box(
-                    df_curr[df_curr['Value_Numeric'] >= WET_DAY_THRES], x='Month_Name', y='Value_Numeric',
-                    color='Month_Name', points="outliers", labels={'Value_Numeric': f'Hujan Harian ({unit})', 'Month_Name': 'Bulan'}
-                )
-                st.plotly_chart(fig_box, use_container_width=True)
-                
-                # 3. Trend Siri Masa & Regresi Linear
-                st.markdown("#### 3. Trend Siri Masa Tahunan & Kecerunan Regresi Linear")
-                ann_df = df_curr.groupby('Year')['Value_Numeric'].agg('sum' if param_mode == "Rainfall" else 'mean').reset_index()
-                if len(ann_df) > 1:
-                    z = np.polyfit(ann_df['Year'], ann_df['Value_Numeric'], 1)
-                    p = np.poly1d(z)
-                    ann_df['Trend_Line'] = p(ann_df['Year'])
-                    fig_tr = px.line(
-                        ann_df, x='Year', y=['Value_Numeric', 'Trend_Line'], markers=True,
-                        title=f"Kecerunan Trend: m = {z[0]:.2f} {unit}/tahun",
-                        labels={'value': f'{param_mode} ({unit})', 'Year': 'Tahun', 'variable': 'Penunjuk'},
-                        color_discrete_map={'Value_Numeric': '#1f77b4', 'Trend_Line': '#ff7f0e'}
-                    )
-                    st.plotly_chart(fig_tr, use_container_width=True)
-                    
-                # 4. Anomali Iklim
-                st.markdown("#### 4. Anomali Siri Masa Iklim (Climate Anomaly)")
-                b_mean = ann_df['Value_Numeric'].mean()
-                ann_df['Anomaly'] = ann_df['Value_Numeric'] - b_mean
-                ann_df['Kategori'] = np.where(ann_df['Anomaly'] >= 0, 'Lebih Normal (Wet)', 'Kurang Normal (Dry)')
-                fig_anom = px.bar(
-                    ann_df, x='Year', y='Anomaly', color='Kategori',
-                    color_discrete_map={'Lebih Normal (Wet)': '#1f77b4', 'Kurang Normal (Dry)': '#d62728'}
-                )
-                fig_anom.add_hline(y=0, line_color="black")
-                st.plotly_chart(fig_anom, use_container_width=True)
-
-                # 5. Matriks Harian (Heatmap)
-                st.markdown("#### 5. Matriks Harian (Heatmap 365 Hari)")
-                chosen_heat_yr = st.selectbox("Pilih Tahun Heatmap:", sorted(df_curr['Year'].unique()), index=len(df_curr['Year'].unique())-1)
-                df_h = df_curr[df_curr['Year'] == chosen_heat_yr]
-                piv_h = df_h.pivot(index='Day', columns='Month', values='Value_Numeric').reindex(index=range(1, 32), columns=range(1, 13))
-                fig_h = px.imshow(
-                    piv_h, labels=dict(x="Bulan", y="Hari", color=f"{param_mode} ({unit})"),
-                    x=month_names_en, y=[str(d) for d in range(1, 32)], color_continuous_scale="Blues", aspect="auto"
-                )
-                st.plotly_chart(fig_h, use_container_width=True)
-
-            # -------------------------------------------------
-            # 3. PERBANDINGAN MERENTAS STESEN
-            # -------------------------------------------------
-            with sub_tabs[2]:
-                st.subheader("📊 Perbandingan Bertindih Merentas Stesen")
-                all_st_list = list(st_dict.keys())
-                sel_st = st.multiselect("Pilih stesen-stesen untuk perbandingan:", all_st_list, default=all_st_list[:min(3, len(all_st_list))])
-                
-                if len(sel_st) >= 2:
-                    fig_mc = go.Figure()
-                    for s_name in sel_st:
-                        d_st = st_dict[s_name]
-                        st_m = d_st.groupby('Month')['Value_Numeric'].mean().reset_index()
-                        st_m['Bulan'] = st_m['Month'].apply(lambda x: month_names_en[x-1])
-                        fig_mc.add_trace(go.Scatter(x=st_m['Bulan'], y=st_m['Value_Numeric'], mode='lines+markers', name=s_name))
-                    fig_mc.update_layout(xaxis_title="Bulan", yaxis_title=f"Purata {param_mode} ({unit})")
-                    st.plotly_chart(fig_mc, use_container_width=True)
-                else:
-                    st.info("💡 Sila pilih sekurang-kurangnya 2 stesen di atas.")
-
-            # -------------------------------------------------
-            # 4. BORANG MATRIKS STANDARD
-            # -------------------------------------------------
-            with sub_tabs[3]:
-                st.subheader(f"📋 Borang Rekod Arkib Piawai — Stesen {selected_st}")
-                s_excel = generate_station_excel(df_curr, selected_st, qc_rule, param_mode)
-                st.download_button(
-                    f"📥 Muat Turun Fail Excel ({selected_st})",
-                    s_excel,
-                    file_name=f"Borang_{param_mode}_{selected_st}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-                st.dataframe(df_curr.head(25), use_container_width=True)
     else:
-        st.info(t["info_upload"])
+        # ====================================================
+        # KESEMUA 11 TAB ASAL KOD APP (1) DIKEKALKAN 100%
+        # ====================================================
+        tabs = st.tabs([
+            "📊 Bar + Line", "🔥 Heatmap", "📉 Anomaly", "📋 Statistics",
+            "📈 Max Daily", "🌧️ Wet Days", "📐 Standard Deviation",
+            "📊 Histogram", "🥧 Rainfall Category", "📦 Boxplot", "⚠️ QC"
+        ])
 
-# =========================================================
-# TAB 2: AUDIT WMO & KAWALAN KUALITI (QC)
-# =========================================================
-with tab_wmo_qc:
-    st.subheader(t["qc_title"])
-    if uploaded_files:
-        qc_p_choice = st.radio(t["select_param"], [t["param_rain"], t["param_temp"]], horizontal=True, key="qc_radio_tab")
-        p_mode_qc = "Rainfall" if qc_p_choice == t["param_rain"] else "Temperature"
-        st_dict_qc = all_data.get(p_mode_qc, {})
-        
-        if st_dict_qc:
-            qc_st_choice = st.selectbox(t["select_station"], list(st_dict_qc.keys()), key="qc_st_select")
-            df_st_qc = st_dict_qc[qc_st_choice]
-            qc_tbl = generate_qc_table(df_st_qc, qc_rule)
-            
-            # Semakan Suspect & Extreme
-            suspects = df_st_qc[df_st_qc['Value_Numeric'] > SUSPECT_THRES]
-            extremes = df_st_qc[df_st_qc['Value_Numeric'] > EXTREME_THRES]
-            
-            qc_sub1, qc_sub2, qc_sub3 = st.tabs(["📅 Audit WMO Bulanan", "⚠️ Rekod Suspect (>150mm)", "🚨 Rekod Ekstrem (>250mm)"])
-            
-            with qc_sub1:
-                filter_failed = st.checkbox(t["qc_filter_failed"], value=False)
-                disp_qc = qc_tbl[qc_tbl['Missing_Days'] > 0] if filter_failed else qc_tbl
-                st.dataframe(disp_qc, use_container_width=True)
-                st.download_button(t["download_qc_csv"], disp_qc.to_csv(index=False).encode('utf-8'), f"WMO_Audit_{qc_st_choice}.csv", "text/csv")
-                
-            with qc_sub2:
-                st.write(f"Jumlah Rekod Suspect: **{len(suspects)}**")
-                if not suspects.empty:
-                    st.dataframe(suspects[['Year', 'Month', 'Day', 'Value_Numeric']], use_container_width=True)
-                else:
-                    st.success("Tiada rekod suspect dikesan.")
-                    
-            with qc_sub3:
-                st.write(f"Jumlah Rekod Ekstrem: **{len(extremes)}**")
-                if not extremes.empty:
-                    st.dataframe(extremes[['Year', 'Month', 'Day', 'Value_Numeric']], use_container_width=True)
-                else:
-                    st.success("Tiada rekod ekstrem dikesan.")
-    else:
-        st.info(t["info_upload"])
+        target_data = all_daily[all_daily["Year"] == target_year].copy()
 
-# =========================================================
-# FOOTER
-# =========================================================
+        # TAB 1: BAR + LINE
+        with tabs[0]:
+            st.subheader(f"Monthly Rainfall {target_year} vs Mean Monthly Rainfall {YEAR_RANGE_TEXT}")
+            x = np.arange(len(months))
+            fig, ax = plt.subplots(figsize=(FIG_WIDTH, FIG_HEIGHT))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+
+            ax.bar(x, rainfall_target.values, width=0.60, color=st.session_state.bar_colors, edgecolor="black", linewidth=0.8, label=f"Total Rainfall {target_year}")
+            ax.plot(x, mean_monthly_total.values, color=LINE_COLOR, marker="o", linewidth=2.5, markersize=7, label=f"Mean Monthly Rainfall {YEAR_RANGE_TEXT}")
+
+            for i, value in enumerate(mean_monthly_total.values):
+                if pd.notna(value):
+                    ax.annotate(f"{value:.1f}", (i, value), xytext=(0, 10), textcoords="offset points", ha="center", fontsize=11, fontweight="bold")
+
+            if min_target_month is not None:
+                min_index = months.index(min_target_month)
+                ax.scatter(min_index, min_target_value, s=50, color=MIN_COLOR, edgecolor="black", linewidth=1, zorder=5, label=f"Minimum {target_year}: {min_target_month} ({min_target_value:.1f} mm)")
+
+            if max_target_month is not None:
+                max_index = months.index(max_target_month)
+                ax.scatter(max_index, max_target_value, s=50, color=MAX_COLOR, edgecolor="black", linewidth=1, zorder=5, label=f"Maximum {target_year}: {max_target_month} ({max_target_value:.1f} mm)")
+
+            ax.set_title(f"{file_name}\nMonthly Rainfall {target_year} vs Mean Monthly Rainfall {YEAR_RANGE_TEXT}", fontsize=16, fontweight="bold")
+            ax.set_xlabel("Month", fontsize=12)
+            ax.set_ylabel("Rainfall (mm)", fontsize=12)
+            ax.set_xticks(x)
+            ax.set_xticklabels(months)
+            ax.set_ylim(RAINFALL_MIN, RAINFALL_MAX)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+            ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=9)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 2: HEATMAP
+        with tabs[1]:
+            st.subheader(f"Monthly Total Rainfall Heatmap {YEAR_RANGE_TEXT}")
+            plot_data = yearly_monthly_total.reindex(columns=months)
+            fig, ax = plt.subplots(figsize=(14, 8))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+
+            valid_values = plot_data.values[~pd.isna(plot_data.values)]
+            vmin, vmax = (valid_values.min(), valid_values.max()) if len(valid_values) > 0 else (0, 1)
+            if vmin == vmax: vmax = vmin + 1
+
+            im = ax.imshow(plot_data.values, aspect="auto", cmap="YlGnBu", vmin=vmin, vmax=vmax)
+            ax.set_xticks(range(len(months)))
+            ax.set_xticklabels(months)
+            ax.set_yticks(range(len(plot_data.index)))
+            ax.set_yticklabels(plot_data.index.astype(str))
+
+            for i in range(len(plot_data.index)):
+                for j in range(len(months)):
+                    val = plot_data.iloc[i, j]
+                    if pd.notna(val):
+                        ax.text(j, i, f"{val:.0f}", ha="center", va="center", fontsize=7)
+                    else:
+                        ax.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor="lightgray", edgecolor="white", linewidth=1))
+                        ax.text(j, i, "N.A.", ha="center", va="center", fontsize=7)
+
+            fig.colorbar(im, ax=ax).set_label("Total Rainfall (mm)", fontsize=11)
+            ax.set_title(f"{file_name}\nMonthly Total Rainfall Heatmap, {YEAR_RANGE_TEXT}", fontsize=16, fontweight="bold")
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 3: ANOMALY
+        with tabs[2]:
+            st.subheader(f"Rainfall Anomaly {target_year} Relative to Mean {YEAR_RANGE_TEXT}")
+            fig, ax = plt.subplots(figsize=(14, 8))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+
+            anomaly_colors = ["lightgray" if pd.isna(v) else ("darkorange" if v >= 0 else "steelblue") for v in anomaly_percent.values]
+            bars = ax.bar(x, anomaly_percent.values, width=0.60, color=anomaly_colors, edgecolor="black", linewidth=0.8)
+            ax.axhline(0, color="black", linewidth=1)
+
+            for bar, val in zip(bars, anomaly_percent.values):
+                if pd.notna(val):
+                    offset, vertical = (4, "bottom") if val >= 0 else (-12, "top")
+                    ax.annotate(f"{val:.1f}%", (bar.get_x() + bar.get_width() / 2, val), xytext=(0, offset), textcoords="offset points", ha="center", va=vertical, fontsize=8)
+
+            ax.set_title(f"{file_name}\nRainfall Anomaly {target_year} Relative to Mean {YEAR_RANGE_TEXT}", fontsize=16, fontweight="bold")
+            ax.set_xlabel("Month", fontsize=12)
+            ax.set_ylabel("Anomaly (%)", fontsize=12)
+            ax.set_xticks(x)
+            ax.set_xticklabels(months)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 4: STATISTICS
+        with tabs[3]:
+            st.subheader("📋 Rainfall Statistical Analysis")
+            display_table = analysis_table.copy()
+            for col in display_table.columns[display_table.columns != "Month"]:
+                display_table[col] = pd.to_numeric(display_table[col], errors="coerce").round(2)
+            st.dataframe(display_table, use_container_width=True, hide_index=True)
+            st.download_button(
+                "📥 Download Statistical Analysis CSV",
+                analysis_table.to_csv(index=False).encode("utf-8-sig"),
+                file_name=f"{file_name}_Statistical_Analysis_{YEAR_RANGE_TEXT}.csv",
+                mime="text/csv"
+            )
+
+        # TAB 5: MAX DAILY
+        with tabs[4]:
+            st.subheader(f"Maximum Daily Rainfall by Month - {target_year}")
+            fig, ax = plt.subplots(figsize=(14, 8))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+            bars = ax.bar(x, max_daily, width=0.60, color=st.session_state.max_daily_color, edgecolor="black", linewidth=0.8)
+            for bar, val in zip(bars, max_daily):
+                if pd.notna(val): ax.annotate(f"{val:.1f}", (bar.get_x() + bar.get_width()/2, val), xytext=(0, 6), textcoords="offset points", ha="center", fontsize=10, fontweight="bold")
+            ax.set_title(f"{file_name}\nMaximum Daily Rainfall by Month - {target_year}", fontsize=16, fontweight="bold")
+            ax.set_xticks(x)
+            ax.set_xticklabels(months)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 6: WET DAYS
+        with tabs[5]:
+            st.subheader(f"Number of Wet Days (≥0.1 mm) - {target_year}")
+            fig, ax = plt.subplots(figsize=(14, 8))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+            bars = ax.bar(x, wet_days, width=0.60, color=st.session_state.wet_days_color, edgecolor="black", linewidth=0.8)
+            for bar, val in zip(bars, wet_days):
+                if pd.notna(val): ax.annotate(f"{int(val)}", (bar.get_x() + bar.get_width()/2, val), xytext=(0, 6), textcoords="offset points", ha="center", fontsize=10, fontweight="bold")
+            ax.set_title(f"{file_name}\nNumber of Wet Days (≥0.1 mm) - {target_year}", fontsize=16, fontweight="bold")
+            ax.set_xticks(x)
+            ax.set_xticklabels(months)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 7: STANDARD DEVIATION
+        with tabs[6]:
+            st.subheader(f"Daily Rainfall Standard Deviation - {target_year}")
+            fig, ax = plt.subplots(figsize=(14, 8))
+            fig.patch.set_facecolor(BG_COLOR)
+            ax.set_facecolor(BG_COLOR)
+            bars = ax.bar(x, std_daily, width=0.60, color=st.session_state.std_color, edgecolor="black", linewidth=0.8)
+            for bar, val in zip(bars, std_daily):
+                if pd.notna(val): ax.annotate(f"{val:.1f}", (bar.get_x() + bar.get_width()/2, val), xytext=(0, 6), textcoords="offset points", ha="center", fontsize=10, fontweight="bold")
+            ax.set_title(f"{file_name}\nDaily Rainfall Standard Deviation - {target_year}", fontsize=16, fontweight="bold")
+            ax.set_xticks(x)
+            ax.set_xticklabels(months)
+            ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # TAB 8: HISTOGRAM
+        with tabs[7]:
+            st.subheader(f"Distribution of Daily Rainfall - {target_year}")
+            if len(hist_values) > 0:
+                fig, ax = plt.subplots(figsize=(14, 8))
+                fig.patch.set_facecolor(BG_COLOR)
+                ax.set_facecolor(BG_COLOR)
+                ax.hist(hist_values, bins=15, color=st.session_state.hist_color, edgecolor="black", linewidth=0.8)
+                ax.set_title(f"{file_name}\nDistribution of Daily Rainfall - {target_year}", fontsize=16, fontweight="bold")
+                ax.set_xlabel("Daily Rainfall (mm)", fontsize=12)
+                ax.set_ylabel("Number of Days", fontsize=12)
+                ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+                plt.tight_layout()
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+            else:
+                st.warning("Tiada data hujan ≥ 0.1 mm untuk histogram.")
+
+        # TAB 9: RAINFALL CATEGORY
+        with tabs[8]:
+            st.subheader(f"Percentage of Days by Rainfall Category - {target_year}")
+            if sum(category_values) > 0:
+                fig, ax = plt.subplots(figsize=(10, 8))
+                fig.patch.set_facecolor(BG_COLOR)
+                ax.set_facecolor(BG_COLOR)
+                wedges, texts, autotexts = ax.pie(category_values, labels=category_labels, autopct="%1.1f%%", startangle=90, counterclock=False, wedgeprops={"edgecolor":"black", "linewidth":0.8})
+                for at in autotexts: at.set_fontsize(11); at.set_fontweight("bold")
+                ax.set_title(f"{file_name}\nPercentage of Days by Rainfall Category - {target_year}", fontsize=16, fontweight="bold")
+                plt.tight_layout()
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+            else:
+                st.warning("Tiada data sah untuk pie chart.")
+
+        # TAB 10: BOXPLOT
+        with tabs[9]:
+            st.subheader(f"Daily Rainfall Distribution by Month - {target_year}")
+            boxplot_data, boxplot_labels = [], []
+            for month in months:
+                month_index = months.index(month) + 1
+                days_expected = calendar.monthrange(target_year, month_index)[1]
+                vals = target_data[month].iloc[:days_expected].dropna()
+                boxplot_data.append(vals[vals >= WET_DAY_MIN].tolist())
+                boxplot_labels.append(month)
+
+            if any(len(v) > 0 for v in boxplot_data):
+                fig, ax = plt.subplots(figsize=(14, 8))
+                fig.patch.set_facecolor(BG_COLOR)
+                ax.set_facecolor(BG_COLOR)
+                bp = ax.boxplot(boxplot_data, tick_labels=boxplot_labels, patch_artist=True, showmeans=True, meanline=False, showfliers=True)
+                for box in bp["boxes"]: box.set(facecolor="#87CEEB", edgecolor="black", linewidth=1)
+                for median in bp["medians"]: median.set(color="red", linewidth=2)
+                for mean in bp["means"]: mean.set(marker="o", markerfacecolor="black", markeredgecolor="black", markersize=5)
+                ax.set_title(f"{file_name}\nDaily Rainfall Distribution by Month - {target_year}", fontsize=16, fontweight="bold")
+                ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+                plt.tight_layout()
+                st.pyplot(fig, use_container_width=True)
+                plt.close(fig)
+            else:
+                st.warning("Tiada data hujan ≥ 0.1 mm untuk boxplot.")
+
+        # TAB 11: QUALITY CONTROL
+        with tabs[10]:
+            st.subheader("⚠️ Quality Control")
+            qc_tabs = st.tabs(["⚠️ Suspect", "🚨 Extreme", "📅 Missing Count", "🔢 Valid Count", "🔁 Consecutive Missing", "📋 QC Status"])
+            with qc_tabs[0]:
+                st.write(f"Jumlah suspect rainfall > {SUSPECT_RAINFALL:.0f} mm: **{len(suspect_df)}**")
+                if len(suspect_df) > 0:
+                    st.dataframe(suspect_df, use_container_width=True, hide_index=True)
+                    st.download_button("📥 Download Suspect CSV", suspect_df.to_csv(index=False).encode("utf-8-sig"), f"{file_name}_Suspect.csv", "text/csv")
+                else:
+                    st.success("Tiada rainfall suspect dikesan.")
+            with qc_tabs[1]:
+                st.write(f"Jumlah extreme rainfall > {EXTREME_RAINFALL:.0f} mm: **{len(extreme_df)}**")
+                if len(extreme_df) > 0:
+                    st.dataframe(extreme_df, use_container_width=True, hide_index=True)
+                    st.download_button("📥 Download Extreme CSV", extreme_df.to_csv(index=False).encode("utf-8-sig"), f"{file_name}_Extreme.csv", "text/csv")
+                else:
+                    st.success("Tiada rainfall extreme dikesan.")
+            with qc_tabs[2]: st.dataframe(monthly_missing_count, use_container_width=True)
+            with qc_tabs[3]: st.dataframe(monthly_valid_count, use_container_width=True)
+            with qc_tabs[4]: st.dataframe(monthly_max_consecutive_missing, use_container_width=True)
+            with qc_tabs[5]: st.dataframe(monthly_qc_status, use_container_width=True)
+
+# ============================================================
+# DOWNLOAD ALL RESULTS AS ZIP
+# ============================================================
+
 st.divider()
-st.caption("© 2026 Jabatan Meteorologi Malaysia (MetMalaysia) | Pejabat Meteorologi Sabah. Standard WMO-No. 1203 Certified.")
+st.header("📦 Download Analysis Results")
+st.write("Muat turun semua jadual analisis, QC dan data suspect/extreme sebagai satu fail ZIP.")
+
+zip_buffer = io.BytesIO()
+with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+    for result in successful_results:
+        fn = result["file_name"]
+        zip_file.writestr(f"{fn}/{fn}_Statistical_Analysis_{YEAR_RANGE_TEXT}.csv", result["analysis_table"].to_csv(index=False))
+        zip_file.writestr(f"{fn}/{fn}_Monthly_Total_{YEAR_RANGE_TEXT}.csv", result["yearly_monthly_total"].to_csv())
+        zip_file.writestr(f"{fn}/{fn}_Missing_Days_{YEAR_RANGE_TEXT}.csv", result["monthly_missing_count"].to_csv())
+        zip_file.writestr(f"{fn}/{fn}_Valid_Days_{YEAR_RANGE_TEXT}.csv", result["monthly_valid_count"].to_csv())
+        zip_file.writestr(f"{fn}/{fn}_Consecutive_Missing_{YEAR_RANGE_TEXT}.csv", result["monthly_max_consecutive_missing"].to_csv())
+        zip_file.writestr(f"{fn}/{fn}_QC_Status_{YEAR_RANGE_TEXT}.csv", result["monthly_qc_status"].to_csv())
+        zip_file.writestr(f"{fn}/{fn}_Suspect_Rainfall.csv", result["suspect_df"].to_csv(index=False))
+        zip_file.writestr(f"{fn}/{fn}_Extreme_Rainfall.csv", result["extreme_df"].to_csv(index=False))
+
+zip_buffer.seek(0)
+st.download_button(
+    label="📦 Download All Results (ZIP)",
+    data=zip_buffer.getvalue(),
+    file_name=f"Rainfall_Analysis_{YEAR_RANGE_TEXT}_Target_{target_year}.zip",
+    mime="application/zip"
+)
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.divider()
+st.caption("🌧️ Rainfall Data Analysis | Quality Control, Climatological Mean, Anomaly and Statistical Analysis")
