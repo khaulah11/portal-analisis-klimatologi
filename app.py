@@ -4,6 +4,7 @@ import numpy as np
 import os
 import calendar
 import io
+import re
 import zipfile
 import streamlit as st
 import plotly.express as px
@@ -20,7 +21,7 @@ st.set_page_config(
 )
 
 st.title("🌧️ Rainfall Data Analysis & Climatology System")
-st.caption("Pemprosesan, Quality Control, Persembahan Data Awam/Saintifik dan Analisis Lanjutan Siri Masa Hujan")
+st.caption("Pemprosesan Automatik Fail Mentah / Terformat, Quality Control, dan Analisis Lanjutan Siri Masa Hujan")
 
 # ============================================================
 # SIDEBAR SETTINGS
@@ -28,14 +29,7 @@ st.caption("Pemprosesan, Quality Control, Persembahan Data Awam/Saintifik dan An
 
 st.sidebar.header("⚙️ Analysis Settings")
 
-# ------------------------------------------------------------
-# PILIHAN BAHASA
-# ------------------------------------------------------------
 LANG = st.sidebar.selectbox("🌐 Bahasa / Language", ["Bahasa Melayu", "English"])
-
-# ============================================================
-# TAHUN CLIMATOLOGY
-# ============================================================
 
 START_YEAR = st.sidebar.number_input(
     "Start Year",
@@ -59,10 +53,6 @@ if START_YEAR > END_YEAR:
 
 years = range(int(START_YEAR), int(END_YEAR) + 1)
 YEAR_RANGE_TEXT = f"{int(START_YEAR)}–{int(END_YEAR)}"
-
-# ============================================================
-# TARGET YEAR
-# ============================================================
 
 target_year = st.sidebar.number_input(
     "Target Year",
@@ -125,10 +115,6 @@ EXTREME_RAINFALL = st.sidebar.number_input(
     value=250.0,
     step=10.0
 )
-
-# ============================================================
-# MONTHS
-# ============================================================
 
 months = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -217,7 +203,7 @@ FIG_HEIGHT = 9
 # ============================================================
 
 uploaded_files = st.file_uploader(
-    "📁 Upload Excel file data hujan mengikut stesen AAWS",
+    "📁 Upload Excel file data hujan AAWS (Fail Mentah atau Fail Terformat):",
     type=["xlsx", "xls"],
     accept_multiple_files=True
 )
@@ -226,25 +212,20 @@ if not uploaded_files:
     st.info("Sila upload sekurang-kurangnya satu fail Excel.")
     st.markdown(
         """
-        **Format data yang diperlukan:**
-        - Sheet dinamakan mengikut tahun, contoh `2016`, `2017`, ..., `2025`
-        - Header berada pada baris ke-7 Excel
-        - Column A = `hari`
-        - Column B:M = `Jan` hingga `Dec`
-        - `N.A.` / kosong = missing
-        - `0.0 mm` = data sah
+        **Sistem kini menyokong 2 jenis format secara automatik:**
+        1. **Fail Mentah AAWS:** Mempunyai helaian (*sheets*) nama stesen dengan 4 lajur (Year, Month, Day, Rainfall).
+        2. **Fail Matriks Terformat:** Helaian dinamakan mengikut tahun (`2016`, `2017`...) dengan jadual 31x12.
         """
     )
     st.stop()
 
 # ============================================================
-# FUNGSI PEMPROSESAN DATA ASAL
+# ENJIN PEMBACAAN & PENGECAMAN DATA HYBRID
 # ============================================================
 
 def max_consecutive_missing(values):
     is_missing = values.isna()
-    max_missing = 0
-    current_missing = 0
+    max_missing, current_missing = 0, 0
     for missing in is_missing:
         if missing:
             current_missing += 1
@@ -254,69 +235,88 @@ def max_consecutive_missing(values):
             current_missing = 0
     return max_missing
 
-def read_year_sheet(uploaded_file, year):
-    try:
-        file_bytes = uploaded_file.getvalue()
-        file_ext = os.path.splitext(uploaded_file.name)[1].lower()
-        engine = "xlrd" if file_ext == ".xls" else "openpyxl"
-        df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=str(year), header=6, engine=engine)
-    except Exception as e:
-        return None, str(e)
+def read_raw_station_sheet(raw_df, sheet_name):
+    """Mengekstrak data siri masa daripada fail mentah AAWS 4 lajur"""
+    start_row = 11
+    for r in range(min(15, len(raw_df))):
+        row_txt = " ".join([str(x).lower() for x in raw_df.iloc[r].tolist() if pd.notna(x)])
+        if ("year" in row_txt or "tahun" in row_txt) and ("month" in row_txt or "bulan" in row_txt):
+            start_row = r + 1
+            break
 
-    if df is None or df.empty:
-        return None, "Sheet kosong."
+    # Cari nama stesen di bahagian header
+    st_name = ""
+    for r in range(min(10, len(raw_df))):
+        for c in range(min(6, len(raw_df.columns))):
+            cell_str = str(raw_df.iloc[r, c]).strip()
+            if any(k in cell_str.lower() for k in ['station', 'stesen', 'stn']):
+                if ':' in cell_str and len(cell_str.split(':', 1)[1].strip()) > 1:
+                    st_name = cell_str.split(':', 1)[1].strip()
+                elif c + 1 < len(raw_df.columns) and pd.notna(raw_df.iloc[r, c + 1]):
+                    st_name = str(raw_df.iloc[r, c + 1]).strip()
+    if not st_name:
+        st_name = str(sheet_name).strip()
+    st_name = re.sub(r'[<>:"/\\|?*]', '', st_name).strip()
 
-    if df.shape[1] < 13:
-        return None, f"Bilangan column tidak mencukupi ({df.shape[1]} column dikesan). Minimum 13 column diperlukan."
+    data = raw_df.iloc[start_row:].copy().iloc[:, :4]
+    data.columns = ["Year", "Month", "Day", "Rainfall"]
+    data["Rainfall"] = data["Rainfall"].astype(str).str.strip().str.upper().replace(['TR', 'TRACE'], '0.1')
+
+    data["Year"] = pd.to_numeric(data["Year"], errors="coerce")
+    data["Month"] = pd.to_numeric(data["Month"], errors="coerce")
+    data["Day"] = pd.to_numeric(data["Day"], errors="coerce")
+    data["Rainfall"] = pd.to_numeric(data["Rainfall"], errors="coerce")
+
+    data = data.dropna(subset=["Year", "Month", "Day"])
+    data = data[data["Year"].between(1900, 2100)]
+    data["Year"] = data["Year"].astype(int)
+    data["Month"] = data["Month"].astype(int)
+    data["Day"] = data["Day"].astype(int)
+
+    # Ubah format kepada bentuk wide matriks (hari x bulan) mengikut tahun
+    daily_dfs = []
+    for yr in sorted(data["Year"].unique()):
+        df_yr = data[data["Year"] == yr]
+        pivot = df_yr.pivot(index="Day", columns="Month", values="Rainfall").reindex(index=range(1, 32), columns=range(1, 13))
+        pivot.columns = months
+        pivot.insert(0, "hari", pivot.index)
+        pivot["Year"] = int(yr)
+        daily_dfs.append(pivot)
+
+    return st_name, pd.concat(daily_dfs, ignore_index=True) if daily_dfs else None
+
+def read_year_matrix_sheet(uploaded_file, year):
+    """Membaca helaian bertab tahun (Format asal App 1)"""
+    file_bytes = uploaded_file.getvalue()
+    file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+    engine = "xlrd" if file_ext == ".xls" else "openpyxl"
+    df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=str(year), header=6, engine=engine)
+
+    if df is None or df.empty or df.shape[1] < 13:
+        return None, "Format matriks tahun tidak sah."
 
     df = df.iloc[:, :13].copy()
-    df.columns = ["hari", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    df.columns = ["hari"] + months
     df["hari"] = pd.to_numeric(df["hari"], errors="coerce")
     df = df[df["hari"].between(1, 31)].copy()
 
-    for month in months:
-        df[month] = pd.to_numeric(df[month], errors="coerce")
-        df.loc[df[month] < VALID_MIN, month] = np.nan
+    for m in months:
+        df[m] = pd.to_numeric(df[m], errors="coerce")
+        df.loc[df[m] < VALID_MIN, m] = np.nan
 
     df["Year"] = int(year)
     return df, None
 
-def analyze_file(uploaded_file):
-    file_name = os.path.splitext(uploaded_file.name)[0]
-    original_file_name = uploaded_file.name
-    daily_results = []
-    read_errors = []
-
-    for year in years:
-        df, error = read_year_sheet(uploaded_file, year)
-        if df is not None:
-            daily_results.append(df)
-        else:
-            read_errors.append({"Year": int(year), "Error": error})
-
-    if len(daily_results) == 0:
-        return {
-            "success": False,
-            "file_name": file_name,
-            "original_file_name": original_file_name,
-            "error": "Tiada sheet tahun berjaya dibaca."
-        }
-
-    all_daily = pd.concat(daily_results, ignore_index=True)
-
+def analyze_station_data(station_name, all_daily):
     for month in months:
         all_daily.loc[all_daily[month] < VALID_MIN, month] = np.nan
 
-    suspect_records = []
-    extreme_records = []
-
+    suspect_records, extreme_records = [], []
     for _, row in all_daily.iterrows():
-        year = int(row["Year"])
-        day = int(row["hari"])
+        year, day = int(row["Year"]), int(row["hari"])
         for month in months:
             value = row[month]
-            if pd.isna(value):
-                continue
+            if pd.isna(value): continue
             if value > EXTREME_RAINFALL:
                 extreme_records.append({"Year": year, "Day": day, "Month": month, "Rainfall (mm)": value, "Status": "EXTREME - DOUBLE CHECK"})
             elif value > SUSPECT_RAINFALL:
@@ -335,8 +335,8 @@ def analyze_file(uploaded_file):
     for year in available_years:
         year_data = all_daily[all_daily["Year"] == year]
         for month in months:
-            month_index = months.index(month) + 1
-            days_expected = calendar.monthrange(int(year), month_index)[1]
+            m_idx = months.index(month) + 1
+            days_expected = calendar.monthrange(int(year), m_idx)[1]
             values = year_data[month].iloc[:days_expected].copy()
             valid_values = values[values.notna() & (values >= VALID_MIN)]
             valid_count = len(valid_values)
@@ -359,16 +359,10 @@ def analyze_file(uploaded_file):
                 else:
                     monthly_qc_status.loc[year, month] = "REJECT"
 
-    if target_year not in yearly_monthly_total.index:
-        return {
-            "success": False,
-            "file_name": file_name,
-            "original_file_name": original_file_name,
-            "error": f"Data tahun {target_year} tidak dijumpai.",
-            "available_years": available_years
-        }
+    # Fallback target year jika tiada dalam rekod
+    current_target_year = target_year if target_year in yearly_monthly_total.index else (available_years[-1] if available_years else target_year)
 
-    rainfall_target = yearly_monthly_total.loc[target_year].reindex(months)
+    rainfall_target = yearly_monthly_total.loc[current_target_year].reindex(months) if current_target_year in yearly_monthly_total.index else pd.Series(np.nan, index=months)
     mean_monthly_total = yearly_monthly_total.mean(axis=0, skipna=True).reindex(months)
 
     anomaly_percent = ((rainfall_target - mean_monthly_total) / mean_monthly_total) * 100
@@ -383,16 +377,16 @@ def analyze_file(uploaded_file):
     max_mean_month, max_mean_value = (valid_mean.idxmax(), valid_mean.max()) if len(valid_mean) > 0 else (None, None)
 
     median_daily, std_daily, max_daily, min_daily, wet_days, valid_data_percent, suspect_count, extreme_count = [], [], [], [], [], [], [], []
-    target_data = all_daily[all_daily["Year"] == target_year].copy()
+    target_data = all_daily[all_daily["Year"] == current_target_year].copy()
 
     for month in months:
-        month_index = months.index(month) + 1
-        days_expected = calendar.monthrange(target_year, month_index)[1]
-        raw_values = target_data[month].iloc[:days_expected].copy()
+        m_idx = months.index(month) + 1
+        days_expected = calendar.monthrange(current_target_year, m_idx)[1] if current_target_year else 31
+        raw_values = target_data[month].iloc[:days_expected].copy() if not target_data.empty else pd.Series()
         qc_values = raw_values[raw_values.notna() & (raw_values >= VALID_MIN)]
         values = qc_values[qc_values >= WET_DAY_MIN]
 
-        valid_data_percent.append((len(qc_values) / days_expected) * 100)
+        valid_data_percent.append((len(qc_values) / days_expected) * 100 if days_expected else 0)
         median_daily.append(values.median() if len(values) > 0 else np.nan)
         std_daily.append(values.std() if len(values) > 1 else np.nan)
         max_daily.append(values.max() if len(values) > 0 else np.nan)
@@ -403,9 +397,9 @@ def analyze_file(uploaded_file):
 
     analysis_table = pd.DataFrame({
         "Month": months,
-        f"Total {target_year} (mm)": rainfall_target.values,
+        f"Total {current_target_year} (mm)": rainfall_target.values,
         f"Mean {YEAR_RANGE_TEXT} (mm)": mean_monthly_total.values,
-        f"Anomaly {target_year} (%)": anomaly_percent.values,
+        f"Anomaly {current_target_year} (%)": anomaly_percent.values,
         "Median Daily (>=0.1 mm)": median_daily,
         "SD Daily (>=0.1 mm)": std_daily,
         "Maximum Daily (>=0.1 mm)": max_daily,
@@ -418,9 +412,9 @@ def analyze_file(uploaded_file):
 
     hist_values, pie_values = [], []
     for month in months:
-        month_index = months.index(month) + 1
-        days_expected = calendar.monthrange(target_year, month_index)[1]
-        raw_values = target_data[month].iloc[:days_expected].copy()
+        m_idx = months.index(month) + 1
+        days_expected = calendar.monthrange(current_target_year, m_idx)[1] if current_target_year else 31
+        raw_values = target_data[month].iloc[:days_expected].copy() if not target_data.empty else pd.Series()
         values = raw_values[raw_values.notna() & (raw_values >= VALID_MIN)]
         pie_values.extend(values.tolist())
         hist_values.extend(values[values >= WET_DAY_MIN].tolist())
@@ -431,13 +425,10 @@ def analyze_file(uploaded_file):
     heavy_rain = sum(10.0 < v <= 50.0 for v in pie_values)
     extreme_rain = sum(v > 50.0 for v in pie_values)
 
-    category_values = [no_rain, light_rain, moderate_rain, heavy_rain, extreme_rain]
-    category_labels = ["No Rain (0.0 mm)", "Light Rain (0.1–2.5 mm)", "Moderate Rain (>2.5–10.0 mm)", "Heavy Rain (>10.0-50.0 mm)", "Extreme Rain (>50 mm)"]
-
     return {
         "success": True,
-        "file_name": file_name,
-        "original_file_name": original_file_name,
+        "file_name": station_name,
+        "original_file_name": station_name,
         "all_daily": all_daily,
         "yearly_monthly_total": yearly_monthly_total,
         "monthly_missing_count": monthly_missing_count,
@@ -455,35 +446,56 @@ def analyze_file(uploaded_file):
         "wet_days": wet_days, "valid_data_percent": valid_data_percent,
         "suspect_count": suspect_count, "extreme_count": extreme_count,
         "analysis_table": analysis_table, "suspect_df": suspect_df, "extreme_df": extreme_df,
-        "hist_values": hist_values, "category_values": category_values, "category_labels": category_labels,
-        "read_errors": read_errors
+        "hist_values": hist_values, "category_values": [no_rain, light_rain, moderate_rain, heavy_rain, extreme_rain],
+        "category_labels": ["No Rain (0.0 mm)", "Light Rain (0.1–2.5 mm)", "Moderate Rain (>2.5–10.0 mm)", "Heavy Rain (>10.0-50.0 mm)", "Extreme Rain (>50 mm)"],
+        "read_errors": []
     }
 
 # ============================================================
-# PROCESS ALL UPLOADED FILES
+# PEMPROSESAN FAIL SECARA DINAMIK
 # ============================================================
 
-with st.spinner("⏳ Sedang memproses semua fail Excel..."):
+with st.spinner("⏳ Sedang membaca dan memproses data AAWS..."):
     results = []
-    progress_bar = st.progress(0)
-    for i, uploaded_file in enumerate(uploaded_files):
-        result = analyze_file(uploaded_file)
-        results.append(result)
-        progress_bar.progress(int(((i + 1) / len(uploaded_files)) * 100))
-    progress_bar.empty()
+    
+    for uploaded_file in uploaded_files:
+        try:
+            excel = pd.ExcelFile(uploaded_file)
+            sheet_names = excel.sheet_names
+            
+            # Semak sama ada ini fail matriks tahunan atau fail raw AAWS stesen
+            year_sheets = [s for s in sheet_names if str(s).strip().isdigit() and int(str(s).strip()) in years]
+            
+            if len(year_sheets) > 0:
+                # Format Matriks Tahunan (Fail output ekstraksi)
+                daily_results = []
+                for yr in years:
+                    df, err = read_year_matrix_sheet(uploaded_file, yr)
+                    if df is not None: daily_results.append(df)
+                if daily_results:
+                    combined = pd.concat(daily_results, ignore_index=True)
+                    res = analyze_station_data(os.path.splitext(uploaded_file.name)[0], combined)
+                    results.append(res)
+            else:
+                # Format Fail Mentah AAWS (Berbilang sheet mengikut stesen)
+                for s_name in sheet_names:
+                    if str(s_name).lower().strip() in ['datalist', 'info', 'summary', 'sheet1']:
+                        continue
+                    raw_df = pd.read_excel(uploaded_file, sheet_name=s_name, header=None)
+                    st_name, st_daily = read_raw_station_sheet(raw_df, s_name)
+                    if st_daily is not None:
+                        res = analyze_station_data(st_name, st_daily)
+                        results.append(res)
+        except Exception as e:
+            st.error(f"Ralat memproses {uploaded_file.name}: {e}")
 
 successful_results = [r for r in results if r.get("success", False)]
-failed_results = [r for r in results if not r.get("success", False)]
-
-st.success(f"✅ {len(successful_results)} daripada {len(uploaded_files)} fail berjaya dianalisis.")
-
-if failed_results:
-    st.warning(f"⚠️ {len(failed_results)} fail tidak berjaya dianalisis.")
-    for result in failed_results:
-        st.error(f"{result.get('original_file_name', 'Unknown')}: {result.get('error', 'Unknown error')}")
 
 if not successful_results:
+    st.error("⚠️ Tiada stesen atau data tahun sah yang berjaya dikesan daripada fail yang dimuat naik.")
     st.stop()
+
+st.success(f"✅ Sebanyak **{len(successful_results)} stesen cerapan** berjaya dikesan & dianalisis sepenuhnya!")
 
 # ============================================================
 # GLOBAL AUTO Y-AXIS
@@ -516,21 +528,20 @@ RAINFALL_MAX = (int(selected_max / 100) + 1) * 100 if selected_max > 0 else 100
 # GLOBAL SUMMARY
 # ============================================================
 
-st.subheader("📌 Overall Analysis Summary")
+st.subheader("📌 Ringkasan Keseluruhan Operasi")
 summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
-summary_col1.metric("Files Analysed", len(successful_results))
+summary_col1.metric("Stesen Dikesan", len(successful_results))
 summary_col2.metric("Target Year", target_year)
-summary_col3.metric("Climatology", YEAR_RANGE_TEXT)
-summary_col4.metric("Auto Y-Axis Maximum", f"{RAINFALL_MAX:.0f} mm")
+summary_col3.metric("Tempoh Normal", YEAR_RANGE_TEXT)
+summary_col4.metric("Skala Maks. Paksi Y", f"{RAINFALL_MAX:.0f} mm")
 
 # ============================================================
-# CIRI BAHARU: PERBANDINGAN BERBILANG STESEN (MULTI-STATION)
+# MULTI-STATION OVERLAY COMPARISON
 # ============================================================
 if len(successful_results) >= 2:
     with st.expander("📊 Perbandingan Merentas Berbilang Stesen (Multi-Station Overlay)", expanded=False):
-        st.markdown("Bandingkan profil purata bulanan dan jumlah tahunan antara beberapa stesen serentak.")
         st_names = [r["file_name"] for r in successful_results]
-        selected_multi = st.multiselect("Pilih stesen untuk dibandingkan:", st_names, default=st_names[:min(4, len(st_names))])
+        selected_multi = st.multiselect("Pilih stesen untuk perbandingan profil bulanan:", st_names, default=st_names[:min(4, len(st_names))])
         
         if len(selected_multi) >= 2:
             comp_fig = go.Figure()
@@ -551,7 +562,7 @@ if len(successful_results) >= 2:
             st.plotly_chart(comp_fig, use_container_width=True)
 
 # ============================================================
-# DISPLAY EACH FILE
+# PAPARAN SETIAP STESEN (11 TAB ASAL APP 1 KEBERADAAN 100%)
 # ============================================================
 
 for result in successful_results:
@@ -586,33 +597,23 @@ for result in successful_results:
     hist_values = result["hist_values"]
     category_values = result["category_values"]
     category_labels = result["category_labels"]
-    read_errors = result["read_errors"]
 
     st.divider()
-    st.header(f"📁 {original_file_name}")
+    st.header(f"📍 Stesen: {original_file_name}")
 
-    if read_errors:
-        with st.expander("⚠️ Sheet yang tidak berjaya dibaca"):
-            st.dataframe(pd.DataFrame(read_errors), use_container_width=True, hide_index=True)
-
-    # Basic Metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric(f"Minimum {target_year}", f"{min_target_value:.2f} mm" if min_target_value is not None else "N.A.", min_target_month)
     col2.metric(f"Maximum {target_year}", f"{max_target_value:.2f} mm" if max_target_value is not None else "N.A.", max_target_month)
     col3.metric("Minimum Mean", f"{min_mean_value:.2f} mm" if min_mean_value is not None else "N.A.", min_mean_month)
     col4.metric("Maximum Mean", f"{max_mean_value:.2f} mm" if max_mean_value is not None else "N.A.", max_mean_month)
 
-    # QC Summary Metrics
     qc_col1, qc_col2, qc_col3 = st.columns(3)
-    qc_col1.metric("Suspect Records", len(suspect_df))
-    qc_col2.metric("Extreme Records", len(extreme_df))
+    qc_col1.metric("Suspect Records (>150mm)", len(suspect_df))
+    qc_col2.metric("Extreme Records (>250mm)", len(extreme_df))
     qc_col3.metric("Valid Daily Records", int(all_daily[months].notna().sum().sum()))
 
-    # ========================================================
-    # CIRI BAHARU: PILIHAN MOD PERSEMBAHAN (AWAM VS SAINTIFIK)
-    # ========================================================
     view_mode = st.radio(
-        f"Pilih Mod Paparan Stesen ({file_name}):",
+        f"Pilih Mod Paparan Bagi {file_name}:",
         ["📊 Paparan Penuh Standard (11 Tab Analisis Lengkap)", "🌐 Pandangan Umum (Public Dashboard)", "🔬 Analisis Trend Saintifik (Regresi Linear)"],
         horizontal=True,
         key=f"mode_{file_name}"
@@ -622,9 +623,7 @@ for result in successful_results:
         st.subheader(f"🌐 Ringkasan Iklim Mesra Awam — {file_name}")
         valid_means = mean_monthly_total.dropna()
         if len(valid_means) > 0:
-            wet_m = valid_means.idxmax()
-            dry_m = valid_means.idxmin()
-            
+            wet_m, dry_m = valid_means.idxmax(), valid_means.idxmin()
             c_p1, c_p2, c_p3 = st.columns(3)
             c_p1.metric("Purata Hujan Tahunan", f"{valid_means.sum():.1f} mm")
             c_p2.metric("Bulan Paling Basah", f"{wet_m} ({valid_means.max():.1f} mm)")
@@ -657,12 +656,10 @@ for result in successful_results:
                 color_discrete_map={'Rainfall': '#1f77b4', 'Trend Line (y=mx+c)': '#ff7f0e'}
             )
             st.plotly_chart(fig_trend, use_container_width=True)
-        else:
-            st.info("Data tahunan tidak mencukupi untuk regresi linear.")
 
     else:
         # ====================================================
-        # KESEMUA 11 TAB ASAL KOD APP (1) DIKEKALKAN 100%
+        # 11 TAB ASAL KOD APP (1) DIKEKALKAN 100%
         # ====================================================
         tabs = st.tabs([
             "📊 Bar + Line", "🔥 Heatmap", "📉 Anomaly", "📋 Statistics",
@@ -870,9 +867,9 @@ for result in successful_results:
             st.subheader(f"Daily Rainfall Distribution by Month - {target_year}")
             boxplot_data, boxplot_labels = [], []
             for month in months:
-                month_index = months.index(month) + 1
-                days_expected = calendar.monthrange(target_year, month_index)[1]
-                vals = target_data[month].iloc[:days_expected].dropna()
+                m_idx = months.index(month) + 1
+                days_expected = calendar.monthrange(target_year, m_idx)[1] if target_year else 31
+                vals = target_data[month].iloc[:days_expected].dropna() if not target_data.empty else pd.Series()
                 boxplot_data.append(vals[vals >= WET_DAY_MIN].tolist())
                 boxplot_labels.append(month)
 
