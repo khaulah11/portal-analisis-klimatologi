@@ -7,7 +7,7 @@ import io
 import os
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from typing import Optional
+from typing import Optional, List
 
 app = FastAPI(title="MetClimate Sabah Climatology API")
 
@@ -89,14 +89,10 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
                     "years": years
                 }
 
-    if not stations:
-        raise HTTPException(status_code=400, detail="Format lajur Year, Month, Day, Rainfall tidak ditemui.")
-
     return stations
 
 
 def write_single_sheet_borang(ws, station_name: str, year: int, df_station: pd.DataFrame, wet_th: float = 0.1):
-    """Menulis format rasmi Borang Kosong ke dalam satu worksheet openpyxl."""
     target_df = df_station[df_station["Year"] == year]
 
     matrix_dict = {}
@@ -243,9 +239,10 @@ def write_single_sheet_borang(ws, station_name: str, year: int, df_station: pd.D
         ws.column_dimensions[col_letter].width = 8
 
 
+# 1. ENDPOINT PROSES MULTIPLE FILES
 @app.post("/api/process-aaws")
 async def process_aaws(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     selected_station: Optional[str] = Form(None),
     target_year: Optional[int] = Form(None),
     max_missing: int = Form(10),
@@ -254,14 +251,25 @@ async def process_aaws(
     suspect_th: float = Form(150.0),
     extreme_th: float = Form(250.0)
 ):
-    contents = await file.read()
-    stations_dict = parse_full_aaws_file(contents, file.filename)
-    station_names = list(stations_dict.keys())
+    all_stations_dict = {}
 
-    if selected_station not in stations_dict:
+    for file in files:
+        contents = await file.read()
+        try:
+            st_dict = parse_full_aaws_file(contents, file.filename)
+            all_stations_dict.update(st_dict)
+        except Exception:
+            continue
+
+    if not all_stations_dict:
+        raise HTTPException(status_code=400, detail="Format lajur Year, Month, Day, Rainfall tidak ditemui dalam fail yang dimuat naik.")
+
+    station_names = sorted(list(all_stations_dict.keys()))
+
+    if selected_station not in all_stations_dict:
         selected_station = station_names[0]
 
-    st_info = stations_dict[selected_station]
+    st_info = all_stations_dict[selected_station]
     df = st_info["data"]
     available_years = st_info["years"]
 
@@ -400,31 +408,35 @@ async def process_aaws(
     }
 
 
+# 2. ENDPOINT EKSPORT MULTIPLE FILES BORANG
 @app.post("/api/export-borang-excel")
 async def export_borang_excel(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     selected_station: str = Form(...),
     target_year: Optional[int] = Form(None),
     all_years: bool = Form(False),
     wet_th: float = Form(0.1)
 ):
-    """Menjana fail Borang Kosong sama ada 1 tahun sahaja atau SEMUA TAHUN dalam multi-tabs."""
-    contents = await file.read()
-    stations_dict = parse_full_aaws_file(contents, file.filename)
+    all_stations_dict = {}
+    for file in files:
+        contents = await file.read()
+        try:
+            st_dict = parse_full_aaws_file(contents, file.filename)
+            all_stations_dict.update(st_dict)
+        except Exception:
+            continue
 
-    if selected_station not in stations_dict:
-        selected_station = list(stations_dict.keys())[0]
+    if selected_station not in all_stations_dict:
+        selected_station = list(all_stations_dict.keys())[0]
 
-    st_data = stations_dict[selected_station]
+    st_data = all_stations_dict[selected_station]
     df = st_data["data"]
     years = st_data["years"]
 
     wb = openpyxl.Workbook()
-    # Buang sheet asal
     wb.remove(wb.active)
 
     if all_years:
-        # Loop semua tahun yang ada dalam dataset stesen
         for yr in years:
             ws = wb.create_sheet(title=str(yr))
             write_single_sheet_borang(ws, selected_station, yr, df, wet_th)
