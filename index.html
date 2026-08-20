@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climatology Analysis Portal MetMalaysia Sabah</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8 font-sans">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- 1. HEADER & TOP NAV -->
+        <header class="bg-[#185a9d] text-white p-6 rounded-2xl shadow-lg">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white text-[#185a9d] font-black text-2xl flex items-center justify-center rounded-xl shadow">
+                        M
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tight">Climatology Analysis Portal MetMalaysia Sabah</h1>
+                        <p class="text-sm text-blue-100">Automated AAWS Rainfall Time-Series & Dynamic WMO QC Engine (11/5 & 5/3 Rules)</p>
+                    </div>
+                </div>
+                <div class="text-left md:text-right text-xs text-blue-100 border-l-2 md:border-l-0 md:border-r-2 border-blue-400/40 pl-3 md:pl-0 md:pr-3">
+                    <p class="font-bold text-white uppercase">Malaysian Meteorological Department</p>
+                    <p>Sabah Meteorological Office</p>
+                </div>
+            </div>
+
+            <!-- TOP NAV BUTTONS (TANPA NUMBERING) -->
+            <nav class="flex flex-wrap gap-2 pt-2 border-t border-blue-400/30 text-sm font-medium" id="topNav">
+                <button onclick="switchMainTab('analytics')" id="nav-analytics" class="nav-btn bg-white/20 text-white px-4 py-1.5 rounded-lg hover:bg-white/30 transition">Analytics Studio</button>
+                <button onclick="switchMainTab('datatable')" id="nav-datatable" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">Data Matrix & Blank Form</button>
+                <button onclick="switchMainTab('qc')" id="nav-qc" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">QC Reports & WMO Logs</button>
+                <button onclick="switchMainTab('manual')" id="nav-manual" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">User Manual</button>
+                <button onclick="switchMainTab('about')" id="nav-about" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">About</button>
+            </nav>
+        </header>
+
+        <!-- ============================================================ -->
+        <!-- TAB 1: ANALYTICS STUDIO -->
+        <!-- ============================================================ -->
+        <div id="page-analytics" class="space-y-6">
+
+            <!-- Data Ingestion & Settings Bar -->
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Upload AAWS Excel File (.xls / .xlsx)</label>
+                        <input type="file" id="excelInput" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-[#185a9d] hover:file:bg-blue-100 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Station</label>
+                        <select id="stationSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-[#185a9d] outline-none">
+                            <option value="">Upload AAWS file first</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Year</label>
+                        <select id="yearSelect" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-[#185a9d] outline-none">
+                            <option value="">Auto (Latest)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">QC Configuration</label>
+                        <button onclick="openModal('settingsModal')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-bold text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition">
+                            <span>⚙️ Thresholds</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Standard Badge Indicator -->
+                <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold">Active QC Standard:</span>
+                        <span id="activeStandardBadge" class="bg-blue-50 text-[#185a9d] font-bold px-2.5 py-0.5 rounded-lg border border-blue-200">WMO 11/5 Rule (WMO 2011: ≤10 days missing, ≤4 consec)</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-[11px]">
+                        <span>Wet Day: <b id="lbl-wet-th" class="text-slate-700">&ge;0.1 mm</b></span>
+                        <span>Suspect: <b id="lbl-susp-th" class="text-amber-600">&gt;150 mm</b></span>
+                        <span>Extreme: <b id="lbl-extr-th" class="text-red-600">&gt;250 mm</b></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Station KPI Info Strip -->
+            <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Annual Mean Rainfall</p>
+                    <h3 id="kpi-mean" class="text-2xl font-black text-[#185a9d] mt-1">-</h3>
+                    <span class="text-xs text-emerald-600 font-medium">Baseline Normal</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Peak Wet Month</p>
+                    <h3 id="kpi-peak" class="text-2xl font-black text-slate-800 mt-1">-</h3>
+                    <span class="text-xs text-blue-600 font-medium">Climatological High</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Driest Month</p>
+                    <h3 id="kpi-dry" class="text-2xl font-black text-slate-800 mt-1">-</h3>
+                    <span class="text-xs text-amber-600 font-medium">Climatological Low</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">WMO QC Status</p>
+                    <h3 id="kpi-qc-status" class="text-2xl font-black text-emerald-600 mt-1">-</h3>
+                    <span id="kpi-qc-desc" class="text-xs text-slate-400 font-medium">Upload AAWS Excel to begin</span>
+                </div>
+            </section>
+
+            <!-- Time Resolution Selector Strip -->
+            <div class="flex flex-wrap justify-between items-center gap-4 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex gap-1">
+                    <button onclick="setResolution('daily')" id="btn-daily" class="toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition">📅 Daily</button>
+                    <button onclick="setResolution('monthly')" id="btn-monthly" class="toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-[#185a9d] shadow-sm transition">📆 Monthly</button>
+                    <button onclick="setResolution('annual')" id="btn-annual" class="toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition">📈 Annual</button>
+                    <button onclick="setResolution('normal30')" id="btn-normal30" class="toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition">🌐 30-Year Climatology</button>
+                </div>
+                <div class="text-xs font-semibold text-slate-500 pr-2">Interactive Climatology Engine Active</div>
+            </div>
+
+            <!-- A. MONTHLY VIEW -->
+            <div id="view-monthly" class="grid grid-cols-1 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">📊 Monthly Climatological Perspectives</h3>
+                            <p class="text-xs text-slate-400">Select visualization style and customize aesthetics directly</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- DROPDOWN PILIHAN GRAF BULANAN (TANPA NUMBERING) -->
+                            <select id="monthlyChartType" onchange="renderMonthly()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
+                                <option value="barline">Bar + Line (Target vs Mean Normal)</option>
+                                <option value="anomaly">Monthly Rainfall Anomaly (%)</option>
+                                <option value="boxplot">Monthly Boxplot (IQR & Outliers)</option>
+                                <option value="wetdays">Monthly Wet Days Count</option>
+                                <option value="donut">Wet Days vs Dry Days Ratio (Pie/Donut)</option>
+                            </select>
+
+                            <button onclick="downloadChartImage('chart-monthly', 'Monthly_Climatology_Analysis')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3.5 py-2 rounded-xl border border-blue-200 transition flex items-center gap-1.5">
+                                📷 Save Full Chart (.PNG)
+                            </button>
+
+                            <button onclick="toggleColorPalette('barColorPanelMonthly')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl border border-slate-300 transition flex items-center gap-1.5">
+                                🎨 Customize Graph
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="barColorPanelMonthly" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Per-Month Bar Colors & Mean Line</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] text-slate-500 font-semibold">Preset:</span>
+                                <button onclick="applyColorPreset('ocean')" class="text-[11px] bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded font-medium hover:bg-blue-200">Ocean Blue</button>
+                                <button onclick="applyColorPreset('classic')" class="text-[11px] bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded font-medium hover:bg-amber-200">Classic Multi</button>
+                                <button onclick="applyColorPreset('forest')" class="text-[11px] bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded font-medium hover:bg-emerald-200">Forest Green</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-6 sm:grid-cols-12 gap-2 text-center" id="monthColorPickersContainer"></div>
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600">Mean Line Color:</span>
+                                <input type="color" id="meanLineColorPicker" value="#000000" onchange="updateMeanLineColor(this.value)" class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                            </div>
+                            <button onclick="toggleColorPalette('barColorPanelMonthly')" class="text-slate-500 hover:text-slate-800 text-xs font-bold">Done</button>
+                        </div>
+                    </div>
+
+                    <div id="chart-monthly" style="height: 400px;"></div>
+                </div>
+            </div>
+
+            <!-- B. DAILY VIEW -->
+            <div id="view-daily" class="hidden grid grid-cols-1 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">📅 Daily Precipitation Analysis</h3>
+                            <p class="text-xs text-slate-400">High-resolution continuous time-series and intensity frequency</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- DROPDOWN PILIHAN GRAF HARIAN (TANPA NUMBERING) -->
+                            <select id="dailyChartType" onchange="renderDaily()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
+                                <option value="timeline">Continuous Daily Rainfall Timeline</option>
+                                <option value="heatmap">365-Day Daily Calendar Heatmap</option>
+                                <option value="hist">Daily Rainfall Frequency Histogram</option>
+                                <option value="classes">MetMalaysia Rain Intensity Classes</option>
+                            </select>
+                            <button onclick="downloadChartImage('chart-daily', 'Daily_Rainfall_Analysis')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3.5 py-2 rounded-xl border border-blue-200 transition flex items-center gap-1.5">
+                                📷 Save Full Chart (.PNG)
+                            </button>
+                            <button onclick="toggleColorPalette('panelDaily')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl border border-slate-300 transition flex items-center gap-1.5">
+                                🎨 Customize Graph
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="panelDaily" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold text-slate-600">Daily Series Color:</span>
+                            <input type="color" id="dailyColorPicker" value="#185a9d" onchange="updateDailyColor(this.value)" class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                        </div>
+                        <button onclick="toggleColorPalette('panelDaily')" class="text-slate-500 hover:text-slate-800 text-xs font-bold">Done</button>
+                    </div>
+
+                    <div id="chart-daily" style="height: 400px;"></div>
+                </div>
+            </div>
+
+            <!-- C. ANNUAL VIEW -->
+            <div id="view-annual" class="hidden grid grid-cols-1 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">📈 Long-Term Annual Analysis</h3>
+                            <p class="text-xs text-slate-400">Inter-annual trends, anomalies, and extreme Rx1day indices</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- DROPDOWN PILIHAN GRAF TAHUNAN (TANPA NUMBERING) -->
+                            <select id="annualChartType" onchange="renderAnnual()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
+                                <option value="trend">Annual Rainfall Total & Linear Regression Trend</option>
+                                <option value="anomaly">Annual Rainfall Anomaly (% Departure from Normal)</option>
+                                <option value="rolling">5-Year Moving Average (Smoothed Climate Trend)</option>
+                                <option value="wetdays_trend">Annual Wet Days Trend</option>
+                                <option value="rx1day">Annual Maximum Daily Rainfall (Rx1day Peak)</option>
+                            </select>
+                            <button onclick="downloadChartImage('chart-annual', 'Annual_Rainfall_Analysis')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3.5 py-2 rounded-xl border border-blue-200 transition flex items-center gap-1.5">
+                                📷 Save Full Chart (.PNG)
+                            </button>
+                            <button onclick="toggleColorPalette('panelAnnual')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl border border-slate-300 transition flex items-center gap-1.5">
+                                🎨 Customize Graph
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="panelAnnual" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-4">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600">Annual Series Color:</span>
+                                <input type="color" id="annualColorPicker" value="#185a9d" onchange="updateAnnualColor(this.value)" class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-600">Trend Line Color:</span>
+                                <input type="color" id="trendColorPicker" value="#f97316" onchange="updateTrendColor(this.value)" class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                            </div>
+                        </div>
+                        <button onclick="toggleColorPalette('panelAnnual')" class="text-slate-500 hover:text-slate-800 text-xs font-bold">Done</button>
+                    </div>
+
+                    <div id="chart-annual" style="height: 400px;"></div>
+                </div>
+            </div>
+
+            <!-- D. 30-YEAR CLIMATOLOGY VIEW -->
+            <div id="view-normal30" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-base">🌐 30-Year Climatological Standard Normals (1991–2020)</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="downloadChartImage('chart-normal30-profile', '30_Year_Standard_Normals')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3 py-1.5 rounded-xl border border-blue-200 transition">📷 Save</button>
+                            <button onclick="toggleColorPalette('panel30Yr')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-300 transition">🎨 Customize</button>
+                        </div>
+                    </div>
+
+                    <div id="panel30Yr" class="hidden bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-slate-600">30-Yr Line Color:</span>
+                            <input type="color" id="normal30ColorPicker" value="#185a9d" onchange="updateNormal30Color(this.value)" class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                        </div>
+                        <button onclick="toggleColorPalette('panel30Yr')" class="text-slate-500 hover:text-slate-800 text-xs font-bold">Done</button>
+                    </div>
+
+                    <div id="chart-normal30-profile" style="height: 380px;"></div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <h3 class="font-bold text-slate-800 text-base">📊 Decadal Shift Comparison</h3>
+                    <div id="chart-normal30-decades" style="height: 380px;"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 2: DATA MATRIX & BLANK FORM (BORANG METMALAYSIA) -->
+        <!-- ============================================================ -->
+        <div id="page-datatable" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-lg">📋 AAWS Rainfall Matrix (Borang Kosong MetMalaysia)</h3>
+                    <p class="text-xs text-slate-500">
+                        <span id="matrixStationLabel" class="font-bold text-[#185a9d]">STATION : -</span> &bull; 
+                        <span id="matrixYearLabel" class="font-bold text-slate-700">YEAR : -</span>
+                    </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="downloadOfficialBorangExcel(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
+                        <span>📥 Export Year <span id="btnExpYearLbl">(-)</span> (.XLSX)</span>
+                    </button>
+                    <button onclick="downloadOfficialBorangExcel(true)" class="bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
+                        <span>📚 Export ALL Years (Multi-Tabs .XLSX)</span>
+                    </button>
+                    <button onclick="downloadCSV('data')" class="bg-[#185a9d] text-white hover:bg-blue-800 text-xs font-bold px-3 py-2.5 rounded-xl transition">📥 Matrix (.CSV)</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                <table class="w-full text-xs text-center text-slate-600">
+                    <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                        <tr>
+                            <th class="p-2.5 border-r border-slate-200 bg-slate-100">DATE</th>
+                            <th class="p-2.5">JAN</th><th class="p-2.5">FEB</th><th class="p-2.5">MAR</th><th class="p-2.5">APR</th>
+                            <th class="p-2.5">MAY</th><th class="p-2.5">JUN</th><th class="p-2.5">JUL</th><th class="p-2.5">AUG</th>
+                            <th class="p-2.5">SEP</th><th class="p-2.5">OCT</th><th class="p-2.5">NOV</th><th class="p-2.5">DEC</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matrixTableBody" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] text-slate-400 italic pt-2">
+                <span>P.K.0497(Litho)</span>
+                <span>TR: Amount less than 0.1mm</span>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 3: QC REPORTS & WMO LOGS -->
+        <!-- ============================================================ -->
+        <div id="page-qc" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">🛡️ Quality Control (QC) Reports & WMO Rule Screening</h2>
+                    <p class="text-xs text-slate-400">Automated evaluation against 11/5 (WMO 2011), 5/3 (WMO 1989), or National Custom Rules</p>
+                </div>
+                <span id="qcReportBadge" class="text-xs bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-lg">Status: 100% Passed QC</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="border border-slate-200 rounded-xl p-5 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-slate-800 text-sm">⚠️ Suspect Daily Rainfall (> Had Suspek)</h4>
+                        <span id="suspectCountBadge" class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-bold">0 Events</span>
+                    </div>
+                    <table class="w-full text-xs text-slate-600">
+                        <thead class="bg-slate-50 text-left">
+                            <tr><th class="p-2">Date</th><th class="p-2">Value (mm)</th><th class="p-2">Action</th></tr>
+                        </thead>
+                        <tbody id="suspectTableBody">
+                            <tr><td colspan="3" class="p-2 text-slate-400 italic">No suspect records.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="border border-slate-200 rounded-xl p-5 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-slate-800 text-sm">🚨 Extreme Storm Threshold (> Had Ekstrem)</h4>
+                        <span id="extremeCountBadge" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold">0 Events</span>
+                    </div>
+                    <p class="text-xs text-slate-400 italic" id="extremeLogText">No extreme daily precipitation exceeding active threshold detected.</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-5 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-2">
+                <h4 class="font-bold text-slate-800 text-sm">Active Screening Parameters</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-medium">
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">Max Missing Days: <b id="summary-max-miss" class="text-[#185a9d]">10 days</b></div>
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">Max Consecutive: <b id="summary-max-consec" class="text-[#185a9d]">4 days</b></div>
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">Wet Day Cutoff: <b id="summary-wet-min" class="text-[#185a9d]">0.1 mm</b></div>
+                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">Suspect Cutoff: <b id="summary-susp-min" class="text-[#185a9d]">150 mm</b></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 4: USER MANUAL -->
+        <!-- ============================================================ -->
+        <div id="page-manual" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            <div>
+                <h2 class="text-xl font-bold text-slate-800">📖 Portal User Manual & Operation Guide</h2>
+                <p class="text-xs text-slate-400">Standard operational procedures for AAWS dataset loading, climatological filtering, and graphics styling</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600 leading-relaxed">
+                <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">1</span>
+                    <h4 class="font-bold text-slate-800 text-sm">Upload & Select Station</h4>
+                    <p>Upload multi-sheet AAWS files (.xls / .xlsx). The portal extracts stations and all available observation years automatically.</p>
+                </div>
+                <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">2</span>
+                    <h4 class="font-bold text-slate-800 text-sm">Analyze & Save Charts</h4>
+                    <p>Explore Daily, Monthly, and Annual perspectives. Click <b>📷 Save Full Chart</b> to download publication-ready figures with titles, metadata, and legends.</p>
+                </div>
+                <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">3</span>
+                    <h4 class="font-bold text-slate-800 text-sm">Multi-Year Borang Export</h4>
+                    <p>Export single years or click <b>📚 Export ALL Years</b> to compile all observation years into a single multi-tab Excel workbook.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 5: ABOUT -->
+        <!-- ============================================================ -->
+        <div id="page-about" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+            <h2 class="text-xl font-bold text-slate-800">ℹ️ About the Portal</h2>
+            <p class="text-xs text-slate-600 leading-relaxed">
+                The <b>Climatology Analysis Portal MetMalaysia Sabah</b> is an automated meteorological analytics system built to process, quality-control, and visualize precipitation data from Automatic Agricultural Weather Stations (AAWS) across Sabah.
+            </p>
+            <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1">
+                <p><b>Developer:</b> Sabah Meteorological Office (MetMalaysia Sabah)</p>
+                <p><b>Version:</b> 2.0 (Custom Full-Stack Dashboard Edition)</p>
+                <p><b>Standards:</b> World Meteorological Organization (WMO-No. 1203 / ETCCDI)</p>
+            </div>
+        </div>
+
+        <!-- MODAL: SETTINGS -->
+        <div id="settingsModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white max-w-xl w-full p-6 rounded-2xl shadow-xl space-y-5">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">⚙️ QC Standards & Threshold Settings</h3>
+                        <p class="text-xs text-slate-400">Select official WMO guidelines or configure National Custom Rules</p>
+                    </div>
+                    <button onclick="closeModal('settingsModal')" class="text-slate-400 hover:text-slate-700 text-xl font-bold">&times;</button>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Standard QC Preset</label>
+                    <select id="qcPresetSelector" onchange="applyQCPreset(this.value)" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-[#185a9d] outline-none">
+                        <option value="wmo_11_5">WMO 11/5 Rule (WMO 2011: Reject if ≥11 days or ≥5 consec missing)</option>
+                        <option value="wmo_5_3">WMO 5/3 Rule (WMO 1989: Reject if >5 days or >3 consec missing)</option>
+                        <option value="agro">Agricultural Research Standard (Wet Day ≥ 1.0 mm)</option>
+                        <option value="custom">National / Custom Rule (Adjustable Below)</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">Max Missing Days/Month (Allowed)</label>
+                        <input type="number" id="inputMaxMissing" value="10" min="0" max="31" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">Max Consecutive Missing Days (Allowed)</label>
+                        <input type="number" id="inputMaxConsec" value="4" min="1" max="31" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">Wet Day Threshold (mm)</label>
+                        <input type="number" id="inputWetMin" value="0.1" step="0.1" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-semibold">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-600 mb-1">Suspect Threshold (mm/day)</label>
+                        <input type="number" id="inputSuspectTh" value="150.0" step="10" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-semibold">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block font-bold text-slate-600 mb-1">Extreme Threshold (mm/day)</label>
+                        <input type="number" id="inputExtremeTh" value="250.0" step="10" min="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-semibold">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button onclick="closeModal('settingsModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-xs font-bold transition">Cancel</button>
+                    <button onclick="saveThresholdSettings()" class="bg-[#185a9d] hover:bg-blue-800 text-white px-5 py-2 rounded-xl text-xs font-bold transition">Save & Apply Rules</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer class="text-center text-xs text-slate-400 pt-6">
+            &copy; 2026 Malaysian Meteorological Department (MetMalaysia) | Sabah Meteorological Office
+        </footer>
+
+    </div>
+
+    <!-- SCRIPT SECTION -->
+    <script>
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        let barColors = ["#4682B4", "#87CEEB", "#3CB371", "#32CD32", "#FFD700", "#FFA500", "#FF7F50", "#FF6347", "#9370DB", "#DA70D6", "#6A5ACD", "#008080"];
+        let meanLineColor = "#000000";
+        let dailyColor = "#185a9d";
+        let annualColor = "#185a9d";
+        let trendColor = "#f97316";
+        let normal30Color = "#185a9d";
+
+        let currentUploadedFile = null;
+        let latestApiResponse = null;
+
+        let qcConfig = {
+            preset: "wmo_11_5",
+            maxMissing: 10,
+            maxConsecutive: 4,
+            wetDayMin: 0.1,
+            suspectThreshold: 150.0,
+            extremeThreshold: 250.0
+        };
+
+        function switchMainTab(tabId) {
+            const pages = ['analytics', 'datatable', 'qc', 'manual', 'about'];
+            pages.forEach(p => {
+                const pageEl = document.getElementById(`page-${p}`);
+                const btnEl = document.getElementById(`nav-${p}`);
+                if (pageEl) pageEl.classList.add('hidden');
+                if (btnEl) btnEl.className = "nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition";
+            });
+
+            const activePage = document.getElementById(`page-${tabId}`);
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activePage) activePage.classList.remove('hidden');
+            if (activeBtn) activeBtn.className = "nav-btn bg-white/20 text-white px-4 py-1.5 rounded-lg hover:bg-white/30 transition";
+
+            if (tabId === 'datatable' && !latestApiResponse) populateTable();
+            if (tabId === 'analytics') renderMonthly();
+        }
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        }
+
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        function applyQCPreset(preset) {
+            if (preset === 'wmo_11_5') {
+                document.getElementById('inputMaxMissing').value = 10;
+                document.getElementById('inputMaxConsec').value = 4;
+                document.getElementById('inputWetMin').value = 0.1;
+                document.getElementById('inputSuspectTh').value = 150.0;
+                document.getElementById('inputExtremeTh').value = 250.0;
+            } else if (preset === 'wmo_5_3') {
+                document.getElementById('inputMaxMissing').value = 5;
+                document.getElementById('inputMaxConsec').value = 3;
+                document.getElementById('inputWetMin').value = 0.1;
+                document.getElementById('inputSuspectTh').value = 150.0;
+                document.getElementById('inputExtremeTh').value = 250.0;
+            } else if (preset === 'agro') {
+                document.getElementById('inputMaxMissing').value = 10;
+                document.getElementById('inputMaxConsec').value = 4;
+                document.getElementById('inputWetMin').value = 1.0;
+                document.getElementById('inputSuspectTh').value = 120.0;
+                document.getElementById('inputExtremeTh').value = 200.0;
+            }
+        }
+
+        function saveThresholdSettings() {
+            qcConfig.preset = document.getElementById('qcPresetSelector').value;
+            qcConfig.maxMissing = parseInt(document.getElementById('inputMaxMissing').value);
+            qcConfig.maxConsecutive = parseInt(document.getElementById('inputMaxConsec').value);
+            qcConfig.wetDayMin = parseFloat(document.getElementById('inputWetMin').value);
+            qcConfig.suspectThreshold = parseFloat(document.getElementById('inputSuspectTh').value);
+            qcConfig.extremeThreshold = parseFloat(document.getElementById('inputExtremeTh').value);
+
+            document.getElementById('lbl-wet-th').innerText = `≥${qcConfig.wetDayMin} mm`;
+            document.getElementById('lbl-susp-th').innerText = `>${qcConfig.suspectThreshold} mm`;
+            document.getElementById('lbl-extr-th').innerText = `>${qcConfig.extremeThreshold} mm`;
+
+            const badge = document.getElementById('activeStandardBadge');
+            if (qcConfig.preset === 'wmo_11_5') badge.innerText = `WMO 11/5 Rule (WMO 2011: ≤${qcConfig.maxMissing}d missing, ≤${qcConfig.maxConsecutive}d consec)`;
+            else if (qcConfig.preset === 'wmo_5_3') badge.innerText = `WMO 5/3 Rule (WMO 1989: ≤${qcConfig.maxMissing}d missing, ≤${qcConfig.maxConsecutive}d consec)`;
+            else if (qcConfig.preset === 'agro') badge.innerText = `Agricultural Standard (Wet Day ≥${qcConfig.wetDayMin} mm)`;
+            else badge.innerText = `National Custom Rules (≤${qcConfig.maxMissing}d / ≤${qcConfig.maxConsecutive}d / ≥${qcConfig.wetDayMin}mm)`;
+
+            document.getElementById('summary-max-miss').innerText = `${qcConfig.maxMissing} days`;
+            document.getElementById('summary-max-consec').innerText = `${qcConfig.maxConsecutive} days`;
+            document.getElementById('summary-wet-min').innerText = `${qcConfig.wetDayMin} mm`;
+            document.getElementById('summary-susp-min').innerText = `${qcConfig.suspectThreshold} mm`;
+
+            closeModal('settingsModal');
+            if (currentUploadedFile) {
+                sendAAWSToBackend();
+            } else {
+                renderMonthly();
+            }
+        }
+
+        function initMonthColorPickers() {
+            const container = document.getElementById('monthColorPickersContainer');
+            container.innerHTML = '';
+            months.forEach((m, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col items-center gap-1';
+                div.innerHTML = `
+                    <span class="text-[10px] font-bold text-slate-500">${m}</span>
+                    <input type="color" id="picker-m-${idx}" value="${barColors[idx]}" 
+                           onchange="updateSingleMonthColor(${idx}, this.value)"
+                           class="w-6 h-6 rounded cursor-pointer border border-slate-300 p-0.5">
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleColorPalette(id) {
+            document.getElementById(id).classList.toggle('hidden');
+        }
+
+        function updateSingleMonthColor(idx, color) {
+            barColors[idx] = color;
+            renderMonthly();
+        }
+
+        function updateMeanLineColor(color) {
+            meanLineColor = color;
+            renderMonthly();
+        }
+
+        function updateDailyColor(color) {
+            dailyColor = color;
+            renderDaily();
+        }
+
+        function updateAnnualColor(color) {
+            annualColor = color;
+            renderAnnual();
+        }
+
+        function updateTrendColor(color) {
+            trendColor = color;
+            renderAnnual();
+        }
+
+        function updateNormal30Color(color) {
+            normal30Color = color;
+            renderNormal30();
+        }
+
+        function applyColorPreset(theme) {
+            if (theme === 'ocean') barColors = Array(12).fill('#185a9d');
+            else if (theme === 'forest') barColors = Array(12).fill('#2e7d32');
+            else if (theme === 'classic') barColors = ["#4682B4", "#87CEEB", "#3CB371", "#32CD32", "#FFD700", "#FFA500", "#FF7F50", "#FF6347", "#9370DB", "#DA70D6", "#6A5ACD", "#008080"];
+            
+            barColors.forEach((c, i) => {
+                const el = document.getElementById(`picker-m-${i}`);
+                if (el) el.value = c;
+            });
+            renderMonthly();
+        }
+
+        function setResolution(res) {
+            ['daily', 'monthly', 'annual', 'normal30'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                const btn = document.getElementById(`btn-${t}`);
+                btn.className = "toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 transition";
+            });
+
+            document.getElementById(`view-${res}`).classList.remove('hidden');
+            document.getElementById(`btn-${res}`).className = "toggle-btn px-4 py-1.5 text-xs font-bold rounded-lg bg-white text-[#185a9d] shadow-sm transition";
+
+            if (res === 'daily') renderDaily();
+            if (res === 'monthly') renderMonthly();
+            if (res === 'annual') renderAnnual();
+            if (res === 'normal30') renderNormal30();
+        }
+
+        function renderMonthly() {
+            const type = document.getElementById('monthlyChartType').value;
+            const targetTotals = latestApiResponse ? latestApiResponse.monthly.target_totals : [150, 110, 120, 125, 185, 165, 205, 200, 190, 180, 155, 200];
+            const normalMean = latestApiResponse ? latestApiResponse.monthly.normal_mean : [160, 120, 130, 140, 175, 150, 190, 180, 175, 165, 145, 185];
+            const wetDays = latestApiResponse ? latestApiResponse.monthly.wet_days : [12, 8, 10, 11, 16, 14, 18, 17, 15, 14, 13, 16];
+            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+            const yr = latestApiResponse ? latestApiResponse.selected_year : 'Target Year';
+
+            const baseLayout = {
+                title: {
+                    text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Climatological Comparison vs Normal Baseline</span>`,
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 0.96,
+                    font: { size: 14, color: '#1e293b' }
+                },
+                margin: { t: 95, b: 40, l: 50, r: 20 },
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 1.10
+                },
+                yaxis: { 
+                    title: 'Rainfall (mm)',
+                    rangemode: 'tozero'
+                }
+            };
+
+            if (type === 'barline') {
+                Plotly.newPlot('chart-monthly', [
+                    { 
+                        x: months, 
+                        y: targetTotals, 
+                        type: 'bar', 
+                        name: `Observed (${yr})`, 
+                        marker: { color: barColors },
+                        text: targetTotals.map(v => v > 0 ? v.toFixed(1) : ''),
+                        textposition: 'outside',
+                        textfont: { size: 10, color: '#1e293b' },
+                        cliponaxis: false
+                    },
+                    { 
+                        x: months, 
+                        y: normalMean, 
+                        type: 'scatter', 
+                        mode: 'lines+markers+text', 
+                        name: 'Climatological Normal Mean', 
+                        line: { color: meanLineColor, width: 2.5 },
+                        text: normalMean.map(v => v > 0 ? v.toFixed(1) : ''),
+                        textposition: 'top center',
+                        textfont: { size: 9, color: '#0f172a' }
+                    }
+                ], baseLayout);
+
+            } else if (type === 'anomaly') {
+                const anom = targetTotals.map((t, i) => normalMean[i] > 0 ? Number(((t - normalMean[i])/normalMean[i]*100).toFixed(1)) : 0);
+                Plotly.newPlot('chart-monthly', [
+                    { 
+                        x: months, 
+                        y: anom, 
+                        type: 'bar', 
+                        marker: { color: barColors }, 
+                        name: 'Monthly Departure (%)',
+                        text: anom.map(v => `${v > 0 ? '+' : ''}${v}%`),
+                        textposition: 'outside',
+                        textfont: { size: 10, color: '#1e293b' },
+                        cliponaxis: false
+                    }
+                ], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Anomaly (% Departure from Normal)</span>` },
+                    yaxis: { title: 'Anomaly (%)' }
+                });
+
+            } else if (type === 'boxplot') {
+                const boxData = months.map(m => Array.from({length: 30}, () => Math.random() * 80 + 20));
+                const traces = months.map((m, i) => ({ y: boxData[i], type: 'box', name: m, marker: { color: barColors[i] } }));
+                Plotly.newPlot('chart-monthly', traces, { 
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Boxplot (Interquartile & Outlier Range)</span>` },
+                    showlegend: false 
+                });
+
+            } else if (type === 'wetdays') {
+                Plotly.newPlot('chart-monthly', [
+                    { 
+                        x: months, 
+                        y: wetDays, 
+                        type: 'bar', 
+                        marker: { color: barColors }, 
+                        name: `Wet Days (≥${qcConfig.wetDayMin} mm)`,
+                        text: wetDays.map(v => `${v}d`),
+                        textposition: 'outside',
+                        textfont: { size: 10, color: '#1e293b' },
+                        cliponaxis: false
+                    }
+                ], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Wet Days Count (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
+                    yaxis: { title: 'Number of Days' }
+                });
+
+            } else if (type === 'donut') {
+                const totalWet = wetDays.reduce((a, b) => a + b, 0);
+                Plotly.newPlot('chart-monthly', [
+                    { 
+                        values: [totalWet, Math.max(0, 365 - totalWet)], 
+                        labels: [`Wet Days (≥${qcConfig.wetDayMin}mm)`, 'Dry Days (0.0mm)'], 
+                        type: 'pie', 
+                        hole: .55, 
+                        marker: { colors: ['#185a9d', '#f59e0b'] },
+                        textinfo: 'label+value+percent',
+                        textposition: 'outside'
+                    }
+                ], { 
+                    margin: { t: 75, b: 30, l: 30, r: 30 },
+                    title: {
+                        text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days vs Dry Days Proportion</span>`,
+                        x: 0.5,
+                        xanchor: 'center',
+                        font: { size: 14, color: '#1e293b' }
+                    }
+                });
+            }
+        }
+
+        function renderDaily() {
+            const type = document.getElementById('dailyChartType').value;
+            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+            const yr = latestApiResponse ? latestApiResponse.selected_year : 'Target Year';
+
+            const baseLayout = {
+                title: {
+                    text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Daily Precipitation Perspectives</span>`,
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 0.96,
+                    font: { size: 14, color: '#1e293b' }
+                },
+                margin: { t: 95, b: 50, l: 55, r: 20 },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.10 }
+            };
+
+            if (type === 'timeline') {
+                const days = Array.from({length: 365}, (_, i) => i + 1);
+                const rain = days.map(() => Math.random() > 0.6 ? Number((Math.random() * 45).toFixed(1)) : 0);
+                Plotly.newPlot('chart-daily', [{
+                    x: days, 
+                    y: rain, 
+                    type: 'scatter', 
+                    mode: 'lines', 
+                    name: 'Daily Rainfall (mm)', 
+                    line: { color: dailyColor } 
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Continuous Daily Rainfall Timeline</span>` },
+                    xaxis: { title: 'Day of Year (1 - 365)' },
+                    yaxis: { title: 'Rainfall (mm)', rangemode: 'tozero' }
+                });
+
+            } else if (type === 'heatmap') {
+                const zData = Array.from({length: 31}, () => Array.from({length: 12}, () => Number((Math.random() * 50).toFixed(1))));
+                Plotly.newPlot('chart-daily', [{
+                    z: zData, 
+                    x: months, 
+                    y: Array.from({length: 31}, (_, i) => i + 1), 
+                    type: 'heatmap', 
+                    colorscale: 'Blues',
+                    colorbar: { title: 'mm' }
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">365-Day Daily Precipitation Calendar Matrix</span>` },
+                    yaxis: { title: 'Day of Month', autorange: 'reversed' }
+                });
+
+            } else if (type === 'hist') {
+                const vals = Array.from({length: 300}, () => Number((Math.exp(Math.random() * 3)).toFixed(1)));
+                Plotly.newPlot('chart-daily', [{
+                    x: vals, 
+                    type: 'histogram', 
+                    name: 'Frequency', 
+                    marker: { color: dailyColor } 
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Daily Rainfall Frequency & Magnitude Distribution</span>` },
+                    xaxis: { title: 'Precipitation Interval (mm)' },
+                    yaxis: { title: 'Day Count Frequency' }
+                });
+
+            } else if (type === 'classes') {
+                const classLabels = ['No Rain (0.0mm)', 'Light (0.1-2.5mm)', 'Moderate (2.6-10mm)', 'Heavy (10.1-50mm)', 'Extreme (>50mm)'];
+                const classVals = [223, 62, 45, 28, 7];
+                Plotly.newPlot('chart-daily', [{
+                    x: classLabels,
+                    y: classVals,
+                    type: 'bar',
+                    marker: { color: ['#94a3b8', '#87ceeb', '#3cb371', '#f59e0b', '#ef4444'] },
+                    text: classVals.map(v => `${v}d`),
+                    textposition: 'outside',
+                    textfont: { size: 10, color: '#1e293b' },
+                    cliponaxis: false
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">MetMalaysia Rainfall Intensity Class Breakdown</span>` },
+                    yaxis: { title: 'Number of Days', rangemode: 'tozero' }
+                });
+            }
+        }
+
+        function renderAnnual() {
+            const type = document.getElementById('annualChartType').value;
+            const yrs = latestApiResponse ? latestApiResponse.annual.years : [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+            const totals = latestApiResponse ? latestApiResponse.annual.totals : [1850, 1920, 1790, 2100, 1950, 1880, 2050, 2150, 1900, 2020];
+            const trendLine = latestApiResponse ? latestApiResponse.annual.trend_line : [1860, 1890, 1920, 1950, 1980, 2010, 2040, 2070, 2100, 2130];
+            const wetDays = latestApiResponse ? latestApiResponse.annual.wet_days : [135, 142, 128, 155, 140, 138, 149, 158, 139, 146];
+            const rx1 = latestApiResponse ? latestApiResponse.annual.rx1day : [65.4, 82.1, 74.0, 112.5, 88.0, 79.5, 95.0, 130.2, 70.0, 89.4];
+            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+
+            const baseLayout = {
+                title: {
+                    text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Long-Term Multi-Year Climate Trends</span>`,
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 0.96,
+                    font: { size: 14, color: '#1e293b' }
+                },
+                margin: { t: 95, b: 50, l: 55, r: 20 },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.10 },
+                xaxis: { type: 'category' }
+            };
+
+            if (type === 'trend') {
+                Plotly.newPlot('chart-annual', [
+                    { 
+                        x: yrs, 
+                        y: totals, 
+                        type: 'bar', 
+                        name: 'Annual Total (mm)', 
+                        marker: { color: annualColor },
+                        text: totals.map(v => v.toFixed(0)),
+                        textposition: 'outside',
+                        textfont: { size: 9, color: '#1e293b' },
+                        cliponaxis: false
+                    },
+                    { 
+                        x: yrs, 
+                        y: trendLine, 
+                        type: 'scatter', 
+                        mode: 'lines', 
+                        name: 'Linear Trend Line', 
+                        line: { color: trendColor, width: 2.5, dash: 'dot' } 
+                    }
+                ], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Total & Linear Regression Trend</span>` },
+                    yaxis: { title: 'Total Rainfall (mm)', rangemode: 'tozero' }
+                });
+
+            } else if (type === 'anomaly') {
+                const meanVal = totals.reduce((a, b) => a + b, 0) / totals.length;
+                const anom = totals.map(v => Number(((v - meanVal) / meanVal * 100).toFixed(1)));
+                const anomColors = anom.map(v => v >= 0 ? annualColor : '#ef4444');
+                Plotly.newPlot('chart-annual', [{ 
+                    x: yrs, 
+                    y: anom, 
+                    type: 'bar', 
+                    name: 'Annual Departure (%)', 
+                    marker: { color: anomColors },
+                    text: anom.map(v => `${v > 0 ? '+' : ''}${v}%`),
+                    textposition: 'outside',
+                    textfont: { size: 9, color: '#1e293b' },
+                    cliponaxis: false
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Departure Anomaly (% from Long-Term Mean)</span>` },
+                    yaxis: { title: 'Anomaly (%)' }
+                });
+
+            } else if (type === 'rolling') {
+                Plotly.newPlot('chart-annual', [
+                    { x: yrs, y: totals, type: 'scatter', mode: 'markers', name: 'Annual Observation', marker: { color: '#94a3b8', size: 8 } },
+                    { x: yrs.slice(2, -2), y: totals.slice(2, -2), type: 'scatter', mode: 'lines+markers', name: '5-Yr Moving Average', line: { color: annualColor, width: 3 } }
+                ], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">5-Year Smoothed Moving Average Trend</span>` },
+                    yaxis: { title: 'Rainfall (mm)', rangemode: 'tozero' }
+                });
+
+            } else if (type === 'wetdays_trend') {
+                Plotly.newPlot('chart-annual', [{ 
+                    x: yrs, 
+                    y: wetDays, 
+                    type: 'bar', 
+                    name: 'Wet Days', 
+                    marker: { color: '#10b981' },
+                    text: wetDays.map(v => `${v}d`),
+                    textposition: 'outside',
+                    textfont: { size: 9, color: '#1e293b' },
+                    cliponaxis: false
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days Count Trend (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
+                    yaxis: { title: 'Number of Days', rangemode: 'tozero' }
+                });
+
+            } else if (type === 'rx1day') {
+                Plotly.newPlot('chart-annual', [{ 
+                    x: yrs, 
+                    y: rx1, 
+                    type: 'bar', 
+                    name: 'Rx1day Peak', 
+                    marker: { color: '#ef4444' },
+                    text: rx1.map(v => `${v} mm`),
+                    textposition: 'outside',
+                    textfont: { size: 9, color: '#1e293b' },
+                    cliponaxis: false
+                }], {
+                    ...baseLayout,
+                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Maximum Daily Rainfall (Rx1day Peak Event)</span>` },
+                    yaxis: { title: 'Max Daily Rainfall (mm)', rangemode: 'tozero' }
+                });
+            }
+        }
+
+        function renderNormal30() {
+            const normal30 = [162, 125, 134, 142, 178, 153, 194, 185, 176, 168, 149, 188];
+            const maxEnv = normal30.map(v => v + 35);
+            const minEnv = normal30.map(v => Math.max(20, v - 30));
+            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+
+            Plotly.newPlot('chart-normal30-profile', [
+                { x: months, y: maxEnv, type: 'scatter', mode: 'lines', line: { width: 0 }, showlegend: false },
+                { x: months, y: minEnv, type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(24, 90, 157, 0.15)', line: { width: 0 }, name: '30-Yr Envelope (Min-Max)' },
+                { 
+                    x: months, 
+                    y: normal30, 
+                    type: 'scatter', 
+                    mode: 'lines+markers+text', 
+                    name: 'WMO Standard Normal (1991–2020)', 
+                    line: { color: normal30Color, width: 3 },
+                    text: normal30.map(v => v.toFixed(0)),
+                    textposition: 'top center',
+                    textfont: { size: 9, color: '#0f172a' }
+                }
+            ], { 
+                margin: { t: 90, b: 35, l: 45, r: 15 }, 
+                title: { text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">30-Year Climatological Standard Normals (1991–2020)</span>`, x: 0.5, xanchor: 'center', y: 0.96 },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.10 },
+                yaxis: { title: 'Normal Rainfall (mm)', rangemode: 'tozero' }
+            });
+
+            Plotly.newPlot('chart-normal30-decades', [
+                { x: months, y: [155, 118, 128, 136, 170, 145, 188, 178, 170, 162, 142, 180], type: 'scatter', mode: 'lines', name: '1991–2000', line: { dash: 'dot' } },
+                { x: months, y: [160, 122, 132, 140, 175, 150, 192, 182, 174, 166, 146, 185], type: 'scatter', mode: 'lines', name: '2001–2010', line: { dash: 'dash' } },
+                { x: months, y: [171, 135, 142, 150, 189, 164, 202, 195, 184, 176, 159, 199], type: 'scatter', mode: 'lines+markers', name: '2011–2020', line: { width: 2.5 } }
+            ], { 
+                margin: { t: 90, b: 35, l: 45, r: 15 }, 
+                title: { text: `<b>Decadal Shifts</b><br><span style="font-size:12px; color:#64748b;">10-Year Epoch Comparison</span>`, x: 0.5, xanchor: 'center', y: 0.96 },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.10 },
+                yaxis: { title: 'Mean Rainfall (mm)', rangemode: 'tozero' }
+            });
+        }
+
+        // --- FUNGSI SAVE CHART BERKUALITI TINGGI (WITH TITLE & LEGEND) ---
+        function downloadChartImage(divId, filenamePrefix) {
+            const chartDiv = document.getElementById(divId);
+            if (!chartDiv) return;
+
+            const stName = latestApiResponse ? latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_") : "Station";
+            const yr = latestApiResponse ? latestApiResponse.selected_year : "Year";
+
+            Plotly.downloadImage(chartDiv, {
+                format: 'png',
+                width: 1400,
+                height: 750,
+                scale: 2,
+                filename: `${filenamePrefix}_${stName}_${yr}`
+            });
+        }
+
+        function populateTable() {
+            const tbody = document.getElementById('matrixTableBody');
+            tbody.innerHTML = '';
+            for (let day = 1; day <= 31; day++) {
+                let row = `<tr class="hover:bg-slate-50"><td class="p-2 font-bold bg-slate-50 border-r border-slate-200">${day}</td>`;
+                for (let m = 0; m < 12; m++) {
+                    const val = (Math.random() > 0.65) ? (Math.random() * 25).toFixed(1) : "0.0";
+                    row += `<td class="p-2">${val}</td>`;
+                }
+                row += `</tr>`;
+                tbody.innerHTML += row;
+            }
+        }
+
+        function downloadCSV(type) {
+            if (!latestApiResponse) {
+                alert("Tiada data stesen untuk dieksport.");
+                return;
+            }
+
+            let csvContent = `data:text/csv;charset=utf-8,STATION : ${latestApiResponse.selected_station},YEAR : ${latestApiResponse.selected_year}\n`;
+            csvContent += "DATE,JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC\n";
+            
+            const matrix = latestApiResponse.borang_kosong_format.matrix;
+            for (let day = 1; day <= 31; day++) {
+                let row = [day];
+                const dayVals = matrix[day] || [];
+                for (let m = 0; m < 12; m++) {
+                    row.push(dayVals[m] !== null && dayVals[m] !== undefined ? dayVals[m] : "");
+                }
+                csvContent += row.join(",") + "\n";
+            }
+
+            csvContent += "TOTAL," + latestApiResponse.borang_kosong_format.monthly_totals.join(",") + "\n";
+            csvContent += "No.Of days," + latestApiResponse.borang_kosong_format.rain_days_count.join(",") + "\n";
+            csvContent += "Highest fall," + latestApiResponse.borang_kosong_format.highest_falls.join(",") + "\n";
+            csvContent += "Date," + latestApiResponse.borang_kosong_format.highest_dates.map(d => `"${d}"`).join(",") + "\n";
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            const cleanName = latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_");
+            link.setAttribute("download", `Data_Matrix_${cleanName}_${latestApiResponse.selected_year}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- BACKEND API CONNECTOR ---
+        async function sendAAWSToBackend() {
+            if (!currentUploadedFile) return;
+
+            document.getElementById('kpi-qc-desc').innerText = "Processing AAWS & generating Borang...";
+
+            const stationSelect = document.getElementById('stationSelect');
+            const yearSelect = document.getElementById('yearSelect');
+
+            const formData = new FormData();
+            formData.append("file", currentUploadedFile);
+            if (stationSelect.value && stationSelect.value !== "Upload AAWS file first") {
+                formData.append("selected_station", stationSelect.value);
+            }
+            if (yearSelect.value && yearSelect.value !== "Auto (Latest)") {
+                formData.append("target_year", yearSelect.value);
+            }
+            formData.append("max_missing", qcConfig.maxMissing);
+            formData.append("max_consec", qcConfig.maxConsecutive);
+            formData.append("wet_th", qcConfig.wetDayMin);
+            formData.append("suspect_th", qcConfig.suspectThreshold);
+            formData.append("extreme_th", qcConfig.extremeThreshold);
+
+            try {
+                const response = await fetch("/api/process-aaws", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Ralat memproses data");
+                }
+
+                const data = await response.json();
+                latestApiResponse = data;
+                console.log("Data diterima dari Python:", data);
+
+                stationSelect.innerHTML = '';
+                data.station_list.forEach(stName => {
+                    const opt = document.createElement('option');
+                    opt.value = stName;
+                    opt.innerText = stName;
+                    if (stName === data.selected_station) opt.selected = true;
+                    stationSelect.appendChild(opt);
+                });
+
+                yearSelect.innerHTML = '';
+                data.available_years.forEach(yr => {
+                    const opt = document.createElement('option');
+                    opt.value = yr;
+                    opt.innerText = yr;
+                    if (yr === data.selected_year) opt.selected = true;
+                    yearSelect.appendChild(opt);
+                });
+
+                document.getElementById('kpi-mean').innerText = `${data.kpi.annual_mean} mm`;
+                document.getElementById('kpi-peak').innerText = data.kpi.peak_month;
+                document.getElementById('kpi-dry').innerText = data.kpi.dry_month;
+                document.getElementById('kpi-qc-status').innerText = data.kpi.qc_valid_percent;
+                document.getElementById('kpi-qc-desc').innerText = `${data.selected_station} (${data.selected_year})`;
+
+                document.getElementById('matrixStationLabel').innerText = `STATION : ${data.selected_station.toUpperCase()}`;
+                document.getElementById('matrixYearLabel').innerText = `YEAR : ${data.selected_year}`;
+                document.getElementById('btnExpYearLbl').innerText = `(${data.selected_year})`;
+
+                renderMonthly();
+
+                const tbody = document.getElementById('matrixTableBody');
+                tbody.innerHTML = '';
+                const matrixData = data.borang_kosong_format.matrix;
+
+                for (let day = 1; day <= 31; day++) {
+                    let row = `<tr class="hover:bg-slate-50"><td class="p-2.5 font-bold bg-slate-100 border-r border-slate-200">${day}</td>`;
+                    const dayVals = matrixData[day] || [];
+                    for (let m = 0; m < 12; m++) {
+                        const val = (dayVals[m] !== null && dayVals[m] !== undefined) ? dayVals[m] : "-";
+                        row += `<td class="p-2.5">${val}</td>`;
+                    }
+                    row += `</tr>`;
+                    tbody.innerHTML += row;
+                }
+
+                let totalRow = `<tr class="bg-blue-50/70 font-bold border-t-2 border-slate-300 text-slate-900"><td class="p-2.5 border-r border-slate-200">TOTAL</td>`;
+                data.borang_kosong_format.monthly_totals.forEach(t => { totalRow += `<td class="p-2.5">${t}</td>`; });
+                totalRow += `</tr>`;
+
+                let rainDaysRow = `<tr class="bg-blue-50/70 font-bold border-t border-slate-200 text-slate-900"><td class="p-2.5 border-r border-slate-200">No.Of days</td>`;
+                data.borang_kosong_format.rain_days_count.forEach(c => { rainDaysRow += `<td class="p-2.5">${c}</td>`; });
+                rainDaysRow += `</tr>`;
+
+                let highestFallRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Highest fall</td>`;
+                data.borang_kosong_format.highest_falls.forEach(hf => { highestFallRow += `<td class="p-2.5">${hf}</td>`; });
+                highestFallRow += `</tr>`;
+
+                let highestDateRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Date</td>`;
+                data.borang_kosong_format.highest_dates.forEach(hd => { highestDateRow += `<td class="p-2.5">${hd}</td>`; });
+                highestDateRow += `</tr>`;
+
+                tbody.innerHTML += totalRow + rainDaysRow + highestFallRow + highestDateRow;
+
+                const suspBody = document.getElementById('suspectTableBody');
+                suspBody.innerHTML = '';
+                if (data.qc_logs.suspect.length > 0) {
+                    data.qc_logs.suspect.forEach(item => {
+                        suspBody.innerHTML += `<tr class="border-t border-slate-100"><td class="p-2 font-medium">${item.date}</td><td class="p-2 font-bold text-amber-600">${item.value}</td><td class="p-2">${item.action}</td></tr>`;
+                    });
+                    document.getElementById('suspectCountBadge').innerText = `${data.qc_logs.suspect.length} Events`;
+                } else {
+                    suspBody.innerHTML = `<tr><td colspan="3" class="p-2 text-slate-400 italic">No suspect records.</td></tr>`;
+                    document.getElementById('suspectCountBadge').innerText = `0 Events`;
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("Ralat: " + error.message);
+                document.getElementById('kpi-qc-desc').innerText = "Failed to process";
+            }
+        }
+
+        // Muat turun Borang Rasmi .XLSX MetMalaysia
+        async function downloadOfficialBorangExcel(isAllYears = false) {
+            if (!currentUploadedFile || !latestApiResponse) {
+                alert("Sila muat naik fail AAWS terlebih dahulu.");
+                return;
+            }
+
+            const btn = event.target.closest('button');
+            const origText = btn.innerHTML;
+            btn.innerHTML = `<span>⏳ Exporting ${isAllYears ? 'All Years' : 'Year'}...</span>`;
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append("file", currentUploadedFile);
+            formData.append("selected_station", latestApiResponse.selected_station);
+            formData.append("target_year", latestApiResponse.selected_year);
+            formData.append("all_years", isAllYears);
+            formData.append("wet_th", qcConfig.wetDayMin);
+
+            try {
+                const response = await fetch("/api/export-borang-excel", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server error (${response.status})`);
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.style.display = "none";
+                a.href = downloadUrl;
+                
+                const cleanName = latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_");
+                if (isAllYears) {
+                    a.download = `Borang_Kosong_ALL_YEARS_${cleanName}.xlsx`;
+                } else {
+                    a.download = `Borang_Kosong_${cleanName}_${latestApiResponse.selected_year}.xlsx`;
+                }
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(downloadUrl);
+                }, 100);
+
+            } catch (err) {
+                console.error("Download Error:", err);
+                alert("Ralat muat turun Excel: " + err.message);
+            } finally {
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('excelInput').addEventListener('change', function(e) {
+            if (e.target.files[0]) {
+                currentUploadedFile = e.target.files[0];
+                sendAAWSToBackend();
+            }
+        });
+
+        document.getElementById('stationSelect').addEventListener('change', function() {
+            if (currentUploadedFile) sendAAWSToBackend();
+        });
+
+        document.getElementById('yearSelect').addEventListener('change', function() {
+            if (currentUploadedFile) sendAAWSToBackend();
+        });
+
+        initMonthColorPickers();
+        renderMonthly();
+    </script>
+</body>
+</html>
