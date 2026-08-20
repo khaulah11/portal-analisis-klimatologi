@@ -7,8 +7,43 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <style>
+        /* Animasi Spinner Khas */
+        .spinner {
+            border: 4px solid rgba(24, 90, 157, 0.15);
+            border-top: 4px solid #185a9d;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8 font-sans">
+<body class="bg-slate-100 min-h-screen text-slate-800 p-4 md:p-8 font-sans relative">
+
+    <!-- ========================================== -->
+    <!-- GLOBAL LOADING OVERLAY (MODAL LOADING)     -->
+    <!-- ========================================== -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[999] transition-opacity duration-300">
+        <div class="bg-white p-6 md:p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 max-w-sm w-full mx-4 border border-slate-100 text-center animate-bounce-short">
+            <div class="spinner"></div>
+            <div>
+                <h4 id="loadingTitle" class="font-bold text-slate-800 text-base">Memproses Data...</h4>
+                <p id="loadingDesc" class="text-xs text-slate-500 mt-1">Sila tunggu sebentar sementara sistem memproses fail.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-[999] hidden items-center gap-3 px-4 py-3 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-xl border border-slate-700 transition-all duration-300 transform translate-y-4">
+        <span id="toastIcon">✅</span>
+        <span id="toastMsg">Berjaya diproses!</span>
+    </div>
 
     <div class="max-w-7xl mx-auto space-y-6">
 
@@ -130,7 +165,6 @@
                             <p class="text-xs text-slate-400">Select visualization style and customize aesthetics directly</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- DROPDOWN PILIHAN GRAF BULANAN (TANPA NUMBERING) -->
                             <select id="monthlyChartType" onchange="renderMonthly()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
                                 <option value="barline">Bar + Line (Target vs Mean Normal)</option>
                                 <option value="anomaly">Monthly Rainfall Anomaly (%)</option>
@@ -182,7 +216,6 @@
                             <p class="text-xs text-slate-400">High-resolution continuous time-series and intensity frequency</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- DROPDOWN PILIHAN GRAF HARIAN (TANPA NUMBERING) -->
                             <select id="dailyChartType" onchange="renderDaily()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
                                 <option value="timeline">Continuous Daily Rainfall Timeline</option>
                                 <option value="heatmap">365-Day Daily Calendar Heatmap</option>
@@ -219,7 +252,6 @@
                             <p class="text-xs text-slate-400">Inter-annual trends, anomalies, and extreme Rx1day indices</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- DROPDOWN PILIHAN GRAF TAHUNAN (TANPA NUMBERING) -->
                             <select id="annualChartType" onchange="renderAnnual()" class="text-xs bg-slate-50 border border-slate-200 p-2 rounded-xl font-medium outline-none">
                                 <option value="trend">Annual Rainfall Total & Linear Regression Trend</option>
                                 <option value="anomaly">Annual Rainfall Anomaly (% Departure from Normal)</option>
@@ -496,6 +528,35 @@
             suspectThreshold: 150.0,
             extremeThreshold: 250.0
         };
+
+        // --- SISTEM LOADING MODAL & TOAST NOTIFICATION ---
+        function showLoader(title = "Memproses Data...", desc = "Sila tunggu sebentar sementara sistem memproses fail.") {
+            document.getElementById('loadingTitle').innerText = title;
+            document.getElementById('loadingDesc').innerText = desc;
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+        }
+
+        function hideLoader() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+        }
+
+        function showToast(msg, isSuccess = true) {
+            const toast = document.getElementById('toastNotification');
+            const icon = document.getElementById('toastIcon');
+            const msgEl = document.getElementById('toastMsg');
+
+            icon.innerText = isSuccess ? "✅" : "⚠️";
+            msgEl.innerText = msg;
+            toast.className = `fixed bottom-6 right-6 z-[999] flex items-center gap-3 px-4 py-3 text-white text-xs font-semibold rounded-xl shadow-xl border transition-all duration-300 transform translate-y-0 ${isSuccess ? 'bg-emerald-900 border-emerald-700' : 'bg-rose-900 border-rose-700'}`;
+
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3500);
+        }
 
         function switchMainTab(tabId) {
             const pages = ['analytics', 'datatable', 'qc', 'manual', 'about'];
@@ -1027,6 +1088,8 @@
             const chartDiv = document.getElementById(divId);
             if (!chartDiv) return;
 
+            showLoader("Menjana Imej Graf...", "Sedang menghasilkan imej beresolusi tinggi (300 DPI) berserta legenda.");
+
             const stName = latestApiResponse ? latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_") : "Station";
             const yr = latestApiResponse ? latestApiResponse.selected_year : "Year";
 
@@ -1036,6 +1099,12 @@
                 height: 750,
                 scale: 2,
                 filename: `${filenamePrefix}_${stName}_${yr}`
+            }).then(() => {
+                hideLoader();
+                showToast("Imej graf berjaya dimuat turun!");
+            }).catch(err => {
+                hideLoader();
+                showToast("Gagal memuat turun imej graf.", false);
             });
         }
 
@@ -1055,7 +1124,7 @@
 
         function downloadCSV(type) {
             if (!latestApiResponse) {
-                alert("Tiada data stesen untuk dieksport.");
+                showToast("Tiada data stesen untuk dieksport.", false);
                 return;
             }
 
@@ -1085,13 +1154,14 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            showToast("Matriks CSV berjaya dimuat turun!");
         }
 
         // --- BACKEND API CONNECTOR ---
         async function sendAAWSToBackend() {
             if (!currentUploadedFile) return;
 
-            document.getElementById('kpi-qc-desc').innerText = "Processing AAWS & generating Borang...";
+            showLoader("Memproses Fail AAWS...", "Sedang mengira penapisan WMO, klimatologi normal, dan menyusun Borang Kosong.");
 
             const stationSelect = document.getElementById('stationSelect');
             const yearSelect = document.getElementById('yearSelect');
@@ -1200,9 +1270,13 @@
                     document.getElementById('suspectCountBadge').innerText = `0 Events`;
                 }
 
+                hideLoader();
+                showToast(`Data stesen "${data.selected_station}" berjaya dimuatkan!`);
+
             } catch (error) {
+                hideLoader();
                 console.error(error);
-                alert("Ralat: " + error.message);
+                showToast(error.message, false);
                 document.getElementById('kpi-qc-desc').innerText = "Failed to process";
             }
         }
@@ -1210,14 +1284,14 @@
         // Muat turun Borang Rasmi .XLSX MetMalaysia
         async function downloadOfficialBorangExcel(isAllYears = false) {
             if (!currentUploadedFile || !latestApiResponse) {
-                alert("Sila muat naik fail AAWS terlebih dahulu.");
+                showToast("Sila muat naik fail AAWS terlebih dahulu.", false);
                 return;
             }
 
-            const btn = event.target.closest('button');
-            const origText = btn.innerHTML;
-            btn.innerHTML = `<span>⏳ Exporting ${isAllYears ? 'All Years' : 'Year'}...</span>`;
-            btn.disabled = true;
+            showLoader(
+                isAllYears ? "Menjana Excel (Semua Tahun)..." : "Menjana Excel Borang Kosong...",
+                isAllYears ? "Sedang menyusun setiap helaian tahun ke dalam tab berasingan." : "Sedang membina format matriks rasmi MetMalaysia."
+            );
 
             const formData = new FormData();
             formData.append("file", currentUploadedFile);
@@ -1258,12 +1332,13 @@
                     window.URL.revokeObjectURL(downloadUrl);
                 }, 100);
 
+                hideLoader();
+                showToast("Fail Excel Borang Kosong berjaya dijana!");
+
             } catch (err) {
+                hideLoader();
                 console.error("Download Error:", err);
-                alert("Ralat muat turun Excel: " + err.message);
-            } finally {
-                btn.innerHTML = origText;
-                btn.disabled = false;
+                showToast("Ralat muat turun Excel: " + err.message, false);
             }
         }
 
