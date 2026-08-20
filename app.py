@@ -106,12 +106,13 @@ def normalize_station_name(val):
 
 def max_consecutive_missing_vectorized(series):
     """Pengiraan pantas turutan missing tanpa iterasi manual"""
-    is_na = series.isna().astype(int)
-    if not is_na.any():
+    if series.empty or not series.isna().any():
         return 0
+    is_na = series.isna().astype(int)
     blocks = (is_na != is_na.shift()).cumsum()
-    consec = is_na.groupby(blocks).sum() * is_na
-    return int(consec.max()) if not consec.empty else 0
+    consec = is_na.groupby(blocks).transform('sum') * is_na
+    max_val = consec.max()
+    return int(max_val) if pd.notna(max_val) else 0
 
 def parse_sheet_raw(raw_df, sheet_name):
     """Mengekstrak data siri masa 4 lajur mentah"""
