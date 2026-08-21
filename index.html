@@ -72,7 +72,9 @@
             </nav>
         </header>
 
+        <!-- ============================================================ -->
         <!-- TAB 1: ANALYTICS STUDIO -->
+        <!-- ============================================================ -->
         <div id="page-analytics" class="space-y-6">
 
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
@@ -309,7 +311,7 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- TAB 2: AAWS VS CONVENTIONAL COMPARISON (MODUL PERBANDINGAN LANJUTAN) -->
+        <!-- TAB 2: AAWS VS CONVENTIONAL COMPARISON -->
         <!-- ============================================================ -->
         <div id="page-compare" class="hidden space-y-6">
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
@@ -333,14 +335,14 @@
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Evaluation Period</label>
                         <select id="compPeriodSelect" onchange="updateComparison()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-[#185a9d] outline-none">
-                            <option value="ALL">🌐 Multi-Year Average (All Available Years)</option>
+                            <option value="ALL">🌐 Multi-Year Average</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
                     <div class="flex items-center gap-3">
-                        <span>Comparison Mode: <b id="compModeBadge" class="bg-blue-50 text-[#185a9d] px-2 py-0.5 rounded font-bold border border-blue-200">Manual Match</b></span>
+                        <span>Comparison Mode: <b class="bg-blue-50 text-[#185a9d] px-2 py-0.5 rounded font-bold border border-blue-200">Manual Station Match</b></span>
                         <span>Evaluation Period: <b id="compActiveYearLabel" class="text-slate-800 font-bold">All Years</b></span>
                     </div>
                     <div>
@@ -373,69 +375,31 @@
                 </div>
             </section>
 
-            <!-- Perspective Visualizations: Dual Bar & Scatter -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="font-bold text-slate-800 text-base">📊 Monthly Rainfall: AAWS vs Conventional</h3>
-                            <p class="text-xs text-slate-400">Side-by-side bar comparison with difference departure trend</p>
-                        </div>
-                        <button onclick="downloadChartImage('chart-compare-bars', 'AAWS_vs_Conventional_Monthly')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3 py-1.5 rounded-xl border border-blue-200 transition">📷 Save</button>
-                    </div>
-                    <div id="chart-compare-bars" style="height: 380px;"></div>
-                </div>
-
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="font-bold text-slate-800 text-base">🎯 1:1 Scatter Plot & Fit</h3>
-                            <p class="text-xs text-slate-400">Sensor parity against 1:1 ideal line</p>
-                        </div>
-                        <button onclick="downloadChartImage('chart-compare-scatter', 'AAWS_vs_Conventional_Scatter')" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition">📷 Save</button>
-                    </div>
-                    <div id="chart-compare-scatter" style="height: 380px;"></div>
-                </div>
-            </div>
-
-            <!-- Advanced Analytics: Boxplot & Dual Heatmap -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- BOXPLOT COMPARISON -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="font-bold text-slate-800 text-base">📦 Grouped Boxplot (Variability & Spread)</h3>
-                            <p class="text-xs text-slate-400">Interquartile range (IQR) & outliers across all observation months</p>
-                        </div>
-                        <button onclick="downloadChartImage('chart-compare-box', 'AAWS_vs_Conv_Boxplot')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-300 transition">📷 Save</button>
-                    </div>
-                    <div id="chart-compare-box" style="height: 380px;"></div>
-                </div>
-
-                <!-- CUMULATIVE RAINFALL CURVE -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="font-bold text-slate-800 text-base">📈 Cumulative Annual Mass Curve</h3>
-                            <p class="text-xs text-slate-400">Progressive rainfall accumulation to detect sensor drift</p>
-                        </div>
-                        <button onclick="downloadChartImage('chart-compare-cum', 'AAWS_vs_Conv_Cumulative')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-300 transition">📷 Save</button>
-                    </div>
-                    <div id="chart-compare-cum" style="height: 380px;"></div>
-                </div>
-            </div>
-
-            <!-- SIDE-BY-SIDE DUAL HEATMAPS -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-                <div class="flex justify-between items-center">
+            <!-- CENTRAL COMPARATIVE GRAPH STUDIO WITH DROPDOWN SELECTOR -->
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-3">
                     <div>
-                        <h3 class="font-bold text-slate-800 text-base">🔥 Side-by-Side Dual Climatology Heatmap (Month &times; Year)</h3>
-                        <p class="text-xs text-slate-400">Direct visual matrix cross-validation across all shared historical years</p>
+                        <h3 class="font-bold text-slate-800 text-base">📊 Sensor Discrepancy & Performance Studio</h3>
+                        <p class="text-xs text-slate-400">Choose analytical perspective to evaluate sensor accuracy and seasonal drifts</p>
                     </div>
-                    <button onclick="downloadChartImage('chart-compare-heatmaps', 'AAWS_vs_Conv_DualHeatmap')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3 py-1.5 rounded-xl border border-blue-200 transition">📷 Save Dual Heatmap</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="compChartTypeSelect" onchange="renderComparativePerspective()" class="text-xs bg-slate-50 border border-slate-300 p-2 rounded-xl font-bold text-slate-700 outline-none">
+                            <option value="dualbar">📊 Dual Bar & Difference Trend (AAWS vs Conv)</option>
+                            <option value="scatter">🎯 1:1 Parity Scatter Plot & Correlation</option>
+                            <option value="boxplot">📦 Grouped Monthly Boxplot (IQR & Dispersion)</option>
+                            <option value="cumulative">📈 Cumulative Annual Mass Curve</option>
+                            <option value="dualheat">🔥 Side-by-Side Clean Dual Heatmaps</option>
+                            <option value="diffheat">⚡ Difference Anomaly Heatmap (AAWS - Conv)</option>
+                        </select>
+                        <button onclick="downloadChartImage('chart-comparative-main', 'AAWS_vs_Conventional_Comparison')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3.5 py-2 rounded-xl border border-blue-200 transition flex items-center gap-1.5">
+                            📷 Save Chart (.PNG)
+                        </button>
+                    </div>
                 </div>
-                <div id="chart-compare-heatmaps" style="height: 380px;"></div>
-            </div>
+
+                <!-- MAIN COMPARATIVE GRAPH CONTAINER -->
+                <div id="chart-comparative-main" style="min-height: 420px;"></div>
+            </section>
 
             <!-- Bias & Difference Data Table -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
@@ -561,13 +525,13 @@
                 </div>
                 <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">2</span>
-                    <h4 class="font-bold text-slate-800 text-sm">Flexible Match & Multi-Year</h4>
-                    <p>Pilih mana-mana stesen AAWS dan Konvensional untuk dibandingkan sama ada bagi satu tahun spesifik atau purata semua tahun.</p>
+                    <h4 class="font-bold text-slate-800 text-sm">Pilih Padanan & Graf</h4>
+                    <p>Padankan stesen mengikut kehendak cerapan dan pilih jenis visualisasi (Dual Bar, Scatter, Boxplot, Cumulative, atau Dual Heatmap).</p>
                 </div>
                 <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">3</span>
-                    <h4 class="font-bold text-slate-800 text-sm">Deep Statistical Insights</h4>
-                    <p>Terokai Boxplot variabiliti, Lengkung Hujan Terkumpul, serta Dual Heatmap bersebelahan untuk kawalan kualiti cerapan.</p>
+                    <h4 class="font-bold text-slate-800 text-sm">Multi-Year Borang Export</h4>
+                    <p>Eksport format rasmi Borang Kosong MetMalaysia bagi setiap tahun atau semua tahun cerapan secara serentak.</p>
                 </div>
             </div>
         </div>
@@ -659,6 +623,9 @@
 
         // Data Konvensional Cache
         let cachedConvStations = {};
+
+        // Cached Comparison Prepared Data
+        let compPrepared = null;
 
         let qcConfig = {
             preset: "wmo_11_5",
@@ -1308,14 +1275,13 @@
         }
 
         // ============================================================
-        // LOGIK PERBANDINGAN LANJUTAN (MANUAL MATCH, BOXPLOT, DUAL HEATMAP)
+        // LOGIK PERBANDINGAN LANJUTAN (DROPDOWN & DISCREPANCY STUDIO)
         // ============================================================
         function updateComparisonDropdowns() {
             const aawsSel = document.getElementById('compAawsStationSelect');
             const convSel = document.getElementById('compConvStationSelect');
             const periodSel = document.getElementById('compPeriodSelect');
 
-            // 1. Populate AAWS Stations
             const aawsStations = Object.keys(cachedAllStations);
             if (aawsStations.length > 0) {
                 const prevVal = aawsSel.value;
@@ -1329,7 +1295,6 @@
                 });
             }
 
-            // 2. Populate Conventional Stations
             const convStations = Object.keys(cachedConvStations);
             if (convStations.length > 0) {
                 const prevConv = convSel.value;
@@ -1343,7 +1308,6 @@
                 });
             }
 
-            // 3. Populate Available Common Years
             const selectedAAWS = aawsSel.value;
             const selectedConv = convSel.value;
 
@@ -1380,15 +1344,15 @@
             const convYrs = convObj.years;
             const commonYrs = aawsYrs.filter(y => convYrs.includes(y));
 
-            document.getElementById('compActiveYearLabel').innerText = selPeriod === 'ALL' ? `All Years (${commonYrs.join(', ') || 'N/A'})` : `Year ${selPeriod}`;
+            document.getElementById('compActiveYearLabel').innerText = selPeriod === 'ALL' ? `All Shared Years (${commonYrs.join(', ') || 'N/A'})` : `Year ${selPeriod}`;
 
             let aawsMonthly = Array(12).fill(0);
             let convMonthly = Array(12).fill(0);
-            let aawsAllYearsMatrix = [];
-            let convAllYearsMatrix = [];
+            let aawsMatrix = [];
+            let convMatrix = [];
+            let diffMatrix = [];
 
             if (selPeriod === 'ALL') {
-                // Compute multi-year average for common years
                 if (commonYrs.length > 0) {
                     for (let m = 0; m < 12; m++) {
                         let sumA = 0, countA = 0;
@@ -1409,17 +1373,14 @@
                 convMonthly = convObj.monthly_by_year[yr] || Array(12).fill(0);
             }
 
-            // Build Matrix for Boxplot & Heatmaps
-            const boxDataAAWS = [];
-            const boxDataConv = [];
             commonYrs.forEach(yr => {
-                const aVals = aawsObj.monthly_by_year[yr]?.totals || [];
-                const cVals = convObj.monthly_by_year[yr] || [];
-                aawsAllYearsMatrix.push(aVals);
-                convAllYearsMatrix.push(cVals);
+                const aVals = aawsObj.monthly_by_year[yr]?.totals || Array(12).fill(0);
+                const cVals = convObj.monthly_by_year[yr] || Array(12).fill(0);
+                aawsMatrix.push(aVals);
+                convMatrix.push(cVals);
+                diffMatrix.push(aVals.map((v, i) => Number((v - (cVals[i] || 0)).toFixed(1))));
             });
 
-            // Calculate Differences, Totals & Bias
             const diffs = [];
             const pctBias = [];
             let sumAAWS = 0, sumConv = 0;
@@ -1451,7 +1412,6 @@
             document.getElementById('comp-kpi-diff').innerText = `${totalDiff > 0 ? '+' : ''}${totalDiff} mm`;
             document.getElementById('comp-kpi-bias').innerText = `${totalBias > 0 ? '+' : ''}${totalBias}%`;
 
-            // Correlation Calculation
             let corrR = 0;
             if (pairAAWS.length > 2) {
                 const meanA = pairAAWS.reduce((x, y) => x + y, 0) / pairAAWS.length;
@@ -1468,127 +1428,15 @@
             }
             document.getElementById('lbl-corr-r').innerText = corrR;
 
-            // 1. Plot Dual Bars & Line
-            Plotly.newPlot('chart-compare-bars', [
-                {
-                    x: months,
-                    y: aawsMonthly,
-                    name: `AAWS: ${selAAWS}`,
-                    type: 'bar',
-                    marker: { color: '#185a9d' }
-                },
-                {
-                    x: months,
-                    y: convMonthly,
-                    name: `Conv: ${selConv}`,
-                    type: 'bar',
-                    marker: { color: '#10b981' }
-                },
-                {
-                    x: months,
-                    y: diffs,
-                    name: 'Absolute Bias (AAWS - Conv)',
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    line: { color: '#f59e0b', width: 2, dash: 'dot' }
-                }
-            ], {
-                title: { text: `<b>Monthly Comparison: ${selAAWS} vs ${selConv}</b>`, x: 0.5, xanchor: 'center' },
-                margin: { t: 75, b: 40, l: 50, r: 20 },
-                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 },
-                yaxis: { title: 'Rainfall (mm)' },
-                barmode: 'group'
-            });
+            compPrepared = {
+                selAAWS, selConv, selPeriod, commonYrs,
+                aawsMonthly, convMonthly, diffs, pctBias,
+                pairAAWS, pairConv, corrR,
+                aawsMatrix, convMatrix, diffMatrix,
+                aawsObj, convObj
+            };
 
-            // 2. Plot Scatter 1:1
-            const maxVal = Math.max(...pairAAWS, ...pairConv, 100) * 1.15;
-            Plotly.newPlot('chart-compare-scatter', [
-                {
-                    x: pairConv,
-                    y: pairAAWS,
-                    mode: 'markers',
-                    type: 'scatter',
-                    name: 'Monthly Pairs',
-                    marker: { color: '#185a9d', size: 10 },
-                    text: months
-                },
-                {
-                    x: [0, maxVal],
-                    y: [0, maxVal],
-                    mode: 'lines',
-                    type: 'scatter',
-                    name: '1:1 Parity Line',
-                    line: { color: '#ef4444', dash: 'dash' }
-                }
-            ], {
-                title: { text: `<b>Scatter Parity Fit (r = ${corrR})</b>`, x: 0.5, xanchor: 'center' },
-                margin: { t: 70, b: 45, l: 50, r: 20 },
-                xaxis: { title: 'Conventional (mm)', range: [0, maxVal] },
-                yaxis: { title: 'AAWS (mm)', range: [0, maxVal] },
-                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 }
-            });
-
-            // 3. Plot Grouped Boxplot
-            const boxTraces = [];
-            months.forEach((m, mIdx) => {
-                const aVals = commonYrs.map(yr => aawsObj.monthly_by_year[yr]?.totals[mIdx]).filter(v => v !== undefined && v !== null);
-                const cVals = commonYrs.map(yr => convObj.monthly_by_year[yr]?.[mIdx]).filter(v => v !== undefined && v !== null);
-                boxTraces.push({ y: aVals, type: 'box', name: `${m} (AAWS)`, marker: { color: '#185a9d' } });
-                boxTraces.push({ y: cVals, type: 'box', name: `${m} (Conv)`, marker: { color: '#10b981' } });
-            });
-
-            Plotly.newPlot('chart-compare-box', boxTraces, {
-                title: { text: `<b>Monthly Precipitation Variability (${commonYrs.length} Shared Years)</b>`, x: 0.5, xanchor: 'center' },
-                margin: { t: 75, b: 60, l: 50, r: 20 },
-                showlegend: false,
-                yaxis: { title: 'Monthly Rainfall (mm)' }
-            });
-
-            // 4. Plot Cumulative Mass Curve
-            let cumA = 0, cumC = 0;
-            const aawsCum = aawsMonthly.map(v => (cumA += (v || 0)));
-            const convCum = convMonthly.map(v => (cumC += (v || 0)));
-
-            Plotly.newPlot('chart-compare-cum', [
-                { x: months, y: aawsCum, type: 'scatter', mode: 'lines+markers', name: 'AAWS Cumulative', line: { color: '#185a9d', width: 3 } },
-                { x: months, y: convCum, type: 'scatter', mode: 'lines+markers', name: 'Conv Cumulative', line: { color: '#10b981', width: 3 } }
-            ], {
-                title: { text: `<b>Cumulative Annual Rainfall Curve</b>`, x: 0.5, xanchor: 'center' },
-                margin: { t: 75, b: 40, l: 55, r: 20 },
-                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 },
-                yaxis: { title: 'Cumulative Rainfall (mm)' }
-            });
-
-            // 5. Plot Side-by-Side Dual Heatmap
-            Plotly.newPlot('chart-compare-heatmaps', [
-                {
-                    z: aawsAllYearsMatrix,
-                    x: months,
-                    y: commonYrs.map(y => `Yr ${y}`),
-                    type: 'heatmap',
-                    colorscale: 'Blues',
-                    xaxis: 'x',
-                    yaxis: 'y',
-                    colorbar: { title: 'AAWS (mm)', x: 0.45, len: 0.9 }
-                },
-                {
-                    z: convAllYearsMatrix,
-                    x: months,
-                    y: commonYrs.map(y => `Yr ${y}`),
-                    type: 'heatmap',
-                    colorscale: 'Greens',
-                    xaxis: 'x2',
-                    yaxis: 'y',
-                    colorbar: { title: 'Conv (mm)', x: 1.0, len: 0.9 }
-                }
-            ], {
-                grid: { rows: 1, columns: 2, pattern: 'independent' },
-                annotations: [
-                    { text: "<b>AAWS Sensor Array</b>", showarrow: false, x: 0.20, y: 1.12, xref: 'paper', yref: 'paper', font: { size: 13, color: '#185a9d' } },
-                    { text: "<b>Conventional Rain Gauge</b>", showarrow: false, x: 0.78, y: 1.12, xref: 'paper', yref: 'paper', font: { size: 13, color: '#10b981' } }
-                ],
-                margin: { t: 80, b: 40, l: 60, r: 40 }
-            });
+            renderComparativePerspective();
 
             // Populate Detailed Comparison Table
             const tbody = document.getElementById('compareTableBody');
@@ -1619,9 +1467,117 @@
             tbody.innerHTML = rowAAWS + rowConv + rowDiff + rowBias;
         }
 
-        // ============================================================
-        // MUAT NAIK FAIL KAJIKLIM KONVENSIONAL
-        // ============================================================
+        function renderComparativePerspective() {
+            if (!compPrepared) return;
+            const p = compPrepared;
+            const type = document.getElementById('compChartTypeSelect').value;
+
+            if (type === 'dualbar') {
+                Plotly.newPlot('chart-comparative-main', [
+                    { x: months, y: p.aawsMonthly, name: `AAWS: ${p.selAAWS}`, type: 'bar', marker: { color: '#185a9d' } },
+                    { x: months, y: p.convMonthly, name: `Conv: ${p.selConv}`, type: 'bar', marker: { color: '#10b981' } },
+                    { x: months, y: p.diffs, name: 'Difference (AAWS - Conv)', type: 'scatter', mode: 'lines+markers', line: { color: '#f59e0b', width: 2, dash: 'dot' } }
+                ], {
+                    title: { text: `<b>Monthly Rainfall: ${p.selAAWS} vs ${p.selConv}</b>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 75, b: 40, l: 50, r: 20 },
+                    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 },
+                    yaxis: { title: 'Rainfall (mm)' },
+                    barmode: 'group'
+                });
+
+            } else if (type === 'scatter') {
+                const maxVal = Math.max(...p.pairAAWS, ...p.pairConv, 100) * 1.15;
+                Plotly.newPlot('chart-comparative-main', [
+                    { x: p.pairConv, y: p.pairAAWS, mode: 'markers', type: 'scatter', name: 'Monthly Pairs', marker: { color: '#185a9d', size: 10 }, text: months },
+                    { x: [0, maxVal], y: [0, maxVal], mode: 'lines', type: 'scatter', name: '1:1 Parity Line (Ideal)', line: { color: '#ef4444', dash: 'dash' } }
+                ], {
+                    title: { text: `<b>1:1 Parity Scatter Fit (r = ${p.corrR})</b>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 70, b: 45, l: 50, r: 20 },
+                    xaxis: { title: `Conventional (${p.selConv}) mm`, range: [0, maxVal] },
+                    yaxis: { title: `AAWS (${p.selAAWS}) mm`, range: [0, maxVal] },
+                    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 }
+                });
+
+            } else if (type === 'boxplot') {
+                const boxTraces = [];
+                months.forEach((m, mIdx) => {
+                    const aVals = p.commonYrs.map(yr => p.aawsObj.monthly_by_year[yr]?.totals[mIdx]).filter(v => v !== undefined && v !== null);
+                    const cVals = p.commonYrs.map(yr => p.convObj.monthly_by_year[yr]?.[mIdx]).filter(v => v !== undefined && v !== null);
+                    boxTraces.push({ y: aVals, type: 'box', name: `${m} (AAWS)`, marker: { color: '#185a9d' } });
+                    boxTraces.push({ y: cVals, type: 'box', name: `${m} (Conv)`, marker: { color: '#10b981' } });
+                });
+                Plotly.newPlot('chart-comparative-main', boxTraces, {
+                    title: { text: `<b>Grouped Monthly Variability (${p.commonYrs.length} Shared Years)</b>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 75, b: 60, l: 50, r: 20 },
+                    showlegend: false,
+                    yaxis: { title: 'Monthly Rainfall (mm)' }
+                });
+
+            } else if (type === 'cumulative') {
+                let cumA = 0, cumC = 0;
+                const aawsCum = p.aawsMonthly.map(v => (cumA += (v || 0)));
+                const convCum = p.convMonthly.map(v => (cumC += (v || 0)));
+                Plotly.newPlot('chart-comparative-main', [
+                    { x: months, y: aawsCum, type: 'scatter', mode: 'lines+markers', name: `AAWS (${p.selAAWS})`, line: { color: '#185a9d', width: 3 } },
+                    { x: months, y: convCum, type: 'scatter', mode: 'lines+markers', name: `Conv (${p.selConv})`, line: { color: '#10b981', width: 3 } }
+                ], {
+                    title: { text: `<b>Cumulative Annual Mass Curve (Drift Assessment)</b>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 75, b: 40, l: 55, r: 20 },
+                    legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 },
+                    yaxis: { title: 'Cumulative Precipitation (mm)' }
+                });
+
+            } else if (type === 'dualheat') {
+                // CLEAN INDEPENDENT SIDE-BY-SIDE DUAL HEATMAP
+                Plotly.newPlot('chart-comparative-main', [
+                    {
+                        z: p.aawsMatrix,
+                        x: months,
+                        y: p.commonYrs.map(y => `Yr ${y}`),
+                        type: 'heatmap',
+                        colorscale: 'Blues',
+                        xaxis: 'x',
+                        yaxis: 'y',
+                        colorbar: { title: 'AAWS (mm)', x: 0.44, len: 0.9 }
+                    },
+                    {
+                        z: p.convMatrix,
+                        x: months,
+                        y: p.commonYrs.map(y => `Yr ${y}`),
+                        type: 'heatmap',
+                        colorscale: 'Greens',
+                        xaxis: 'x2',
+                        yaxis: 'y2',
+                        colorbar: { title: 'Conv (mm)', x: 1.0, len: 0.9 }
+                    }
+                ], {
+                    xaxis: { domain: [0, 0.43], title: 'AAWS Sensor' },
+                    yaxis: { title: 'Observation Years' },
+                    xaxis2: { domain: [0.55, 0.98], title: 'Conventional Gauge' },
+                    yaxis2: { anchor: 'x2', showticklabels: false },
+                    title: { text: `<b>Side-by-Side Dual Climatology Heatmap (Shared Years: ${p.commonYrs.join(', ')})</b>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 75, b: 50, l: 65, r: 35 }
+                });
+
+            } else if (type === 'diffheat') {
+                // ANOMALY/DIFFERENCE HEATMAP (AAWS - CONV)
+                Plotly.newPlot('chart-comparative-main', [{
+                    z: p.diffMatrix,
+                    x: months,
+                    y: p.commonYrs.map(y => `Yr ${y}`),
+                    type: 'heatmap',
+                    colorscale: 'RdBu',
+                    reversescale: true,
+                    zmid: 0,
+                    colorbar: { title: 'Diff (mm)' }
+                }], {
+                    title: { text: `<b>Difference Anomaly Heatmap: AAWS - Conventional (mm)</b><br><span style="font-size:11px; color:#64748b;">Blue = AAWS Overestimated | Red = AAWS Underestimated</span>`, x: 0.5, xanchor: 'center' },
+                    margin: { t: 75, b: 40, l: 65, r: 30 },
+                    yaxis: { title: 'Observation Years' }
+                });
+            }
+        }
+
         async function sendConvToBackend(files) {
             showLoader("Memproses Fail Kajiklim Konvensional...", "Sedang mengekstrak siri masa bulanan daripada fail cerapan manual.");
 

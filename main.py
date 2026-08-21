@@ -28,7 +28,7 @@ async def read_index():
     return {"message": "index.html tidak dijumpai"}
 
 # ============================================================
-# 1. PARSER FAIL AAWS (OPTIMIZED VECTORIZED)
+# 1. PARSER FAIL AAWS (VEKTOR PANTAS)
 # ============================================================
 def parse_full_aaws_file(file_bytes: bytes, filename: str):
     engine = "xlrd" if filename.endswith(".xls") else "openpyxl"
@@ -167,7 +167,7 @@ def parse_conventional_file(file_bytes: bytes, filename: str):
     return conv_stations
 
 # ============================================================
-# 3. FAST VECTORIZED PAYLOAD CALCULATION (30X LEBIH LAJU)
+# 3. PENGIRAAN VEKTOR STATISTIK
 # ============================================================
 def calculate_station_payload(df: pd.DataFrame, available_years: list, max_missing: int, max_consec: int, wet_th: float, suspect_th: float, extreme_th: float):
     qc_logs_all = {}
@@ -188,7 +188,6 @@ def calculate_station_payload(df: pd.DataFrame, available_years: list, max_missi
         hf_list = []
         hd_list = []
 
-        # Vectorized Pivot Matriks Harian
         pivot = yr_df.pivot(index='Day', columns='Month', values='Rainfall').reindex(index=range(1, 32), columns=range(1, 13))
         matrix_by_year[yr] = {
             d: [round(float(v), 1) if pd.notna(v) else None for v in pivot.loc[d].tolist()] 
