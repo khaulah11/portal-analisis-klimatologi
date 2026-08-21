@@ -27,35 +27,38 @@ async def read_index():
         return FileResponse("index.html")
     return {"message": "index.html tidak dijumpai"}
 
+# ============================================================
+# FUNGSI PEMPROSESAN DATA CEPAT (SINGLE-PASS IN-MEMORY)
+# ============================================================
 def parse_full_aaws_file(file_bytes: bytes, filename: str):
     engine = "xlrd" if filename.endswith(".xls") else "openpyxl"
     try:
-        xls = pd.ExcelFile(io.BytesIO(file_bytes), engine=engine)
+        # Membaca kesemua helaian serentak ke dalam memori
+        all_sheets = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None, header=None, engine=engine)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Gagal membaca fail Excel: {str(e)}")
 
     stations = {}
 
-    for sheet_name in xls.sheet_names:
-        if sheet_name.lower() in ["datalist", "list", "index", "sheet1_copy"]:
-            continue
-
-        try:
-            df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name, engine=engine)
-        except Exception:
+    for sheet_name, df_raw in all_sheets.items():
+        if sheet_name.lower().strip() in ["datalist", "list", "index", "sheet1_copy", "summary", "sheet1"]:
             continue
 
         if len(df_raw) < 5:
             continue
 
+        # 1. Ekstrak Nama Stesen (Imbas 10 baris teratas)
         station_name = sheet_name
         for idx in range(min(10, len(df_raw))):
             row_str = " ".join([str(x) for x in df_raw.iloc[idx].values])
             if "station" in row_str.lower():
                 val = df_raw.iloc[idx, 1] if pd.notna(df_raw.iloc[idx, 1]) else df_raw.iloc[idx, 0]
-                station_name = str(val).replace("Station:", "").replace("Station", "").replace(":", "").strip()
+                extracted_st = str(val).replace("Station:", "").replace("Station", "").replace(":", "").strip()
+                if extracted_st:
+                    station_name = extracted_st
                 break
 
+        # 2. Cari Baris Pengepala (Header Row)
         header_row = None
         for idx in range(min(20, len(df_raw))):
             row_vals = [str(x).strip().lower() for x in df_raw.iloc[idx].values]
@@ -64,14 +67,15 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
                 break
 
         if header_row is not None:
-            data_df = pd.read_excel(io.BytesIO(file_bytes), sheet_name=sheet_name, skiprows=header_row + 1, engine=engine)
-            data_df = data_df.iloc[:, 0:4]
+            # Potong DataFrame terus tanpa membuka semula fail
+            data_df = df_raw.iloc[header_row + 1:, 0:4].copy()
             data_df.columns = ["Year", "Month", "Day", "Rainfall"]
 
             data_df["Year"] = pd.to_numeric(data_df["Year"], errors="coerce")
             data_df["Month"] = pd.to_numeric(data_df["Month"], errors="coerce")
             data_df["Day"] = pd.to_numeric(data_df["Day"], errors="coerce")
             data_df = data_df.dropna(subset=["Year", "Month", "Day"])
+
             data_df["Year"] = data_df["Year"].astype(int)
             data_df["Month"] = data_df["Month"].astype(int)
             data_df["Day"] = data_df["Day"].astype(int)
@@ -239,7 +243,9 @@ def write_single_sheet_borang(ws, station_name: str, year: int, df_station: pd.D
         ws.column_dimensions[col_letter].width = 8
 
 
+# ============================================================
 # 1. ENDPOINT PROSES MULTIPLE FILES
+# ============================================================
 @app.post("/api/process-aaws")
 async def process_aaws(
     files: List[UploadFile] = File(...),
@@ -408,7 +414,9 @@ async def process_aaws(
     }
 
 
+# ============================================================
 # 2. ENDPOINT EKSPORT MULTIPLE FILES BORANG
+# ============================================================
 @app.post("/api/export-borang-excel")
 async def export_borang_excel(
     files: List[UploadFile] = File(...),
