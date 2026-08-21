@@ -188,7 +188,7 @@ def calculate_station_payload(df: pd.DataFrame, available_years: list, max_missi
         hf_list = []
         hd_list = []
 
-        # Vectorized Pivot Matriks Harian (Pantas)
+        # Vectorized Pivot Matriks Harian
         pivot = yr_df.pivot(index='Day', columns='Month', values='Rainfall').reindex(index=range(1, 32), columns=range(1, 13))
         matrix_by_year[yr] = {
             d: [round(float(v), 1) if pd.notna(v) else None for v in pivot.loc[d].tolist()] 
@@ -210,7 +210,6 @@ def calculate_station_payload(df: pd.DataFrame, available_years: list, max_missi
                 month_sums.append(float(col_series.sum()))
                 wet_days_counts.append(int((col_series >= wet_th).sum()))
 
-            # Highest Fall & Date
             valid_vals = col_series.dropna()
             if not valid_vals.empty and (valid_vals > 0).any():
                 max_v = valid_vals.max()
