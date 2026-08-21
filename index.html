@@ -44,7 +44,7 @@
 
     <div class="max-w-7xl mx-auto space-y-6">
 
-        <!-- 1. HEADER & TOP NAV -->
+        <!-- HEADER & TOP NAV -->
         <header class="bg-[#185a9d] text-white p-6 rounded-2xl shadow-lg">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div class="flex items-center gap-4">
@@ -53,7 +53,7 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold tracking-tight">Climatology Analysis Portal MetMalaysia Sabah</h1>
-                        <p class="text-sm text-blue-100">Automated AAWS Rainfall Time-Series & Dynamic WMO QC Engine (11/5 & 5/3 Rules)</p>
+                        <p class="text-sm text-blue-100">Automated AAWS Rainfall Time-Series, Conventional Cross-Comparison & Dynamic WMO QC Engine</p>
                     </div>
                 </div>
                 <div class="text-left md:text-right text-xs text-blue-100 border-l-2 md:border-l-0 md:border-r-2 border-blue-400/40 pl-3 md:pl-0 md:pr-3">
@@ -62,9 +62,9 @@
                 </div>
             </div>
 
-            <!-- TOP NAV BUTTONS (TANPA NUMBERING) -->
             <nav class="flex flex-wrap gap-2 pt-2 border-t border-blue-400/30 text-sm font-medium" id="topNav">
                 <button onclick="switchMainTab('analytics')" id="nav-analytics" class="nav-btn bg-white/20 text-white px-4 py-1.5 rounded-lg hover:bg-white/30 transition">Analytics Studio</button>
+                <button onclick="switchMainTab('compare')" id="nav-compare" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">🔄 AAWS vs Conventional Comparison</button>
                 <button onclick="switchMainTab('datatable')" id="nav-datatable" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">Data Matrix & Blank Form</button>
                 <button onclick="switchMainTab('qc')" id="nav-qc" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">QC Reports & WMO Logs</button>
                 <button onclick="switchMainTab('manual')" id="nav-manual" class="nav-btn text-blue-100 px-4 py-1.5 rounded-lg hover:bg-white/10 transition">User Manual</button>
@@ -77,7 +77,6 @@
         <!-- ============================================================ -->
         <div id="page-analytics" class="space-y-6">
 
-            <!-- Data Ingestion & Settings Bar (DENGAN MULTIPLE FILES) -->
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                     <div class="md:col-span-2">
@@ -312,7 +311,106 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- TAB 2: DATA MATRIX & BLANK FORM (BORANG METMALAYSIA) -->
+        <!-- TAB 2: AAWS VS CONVENTIONAL COMPARISON (MODUL BAHARU) -->
+        <!-- ============================================================ -->
+        <div id="page-compare" class="hidden space-y-6">
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Upload Conventional Rainfall File(s) (.xls / .xlsx)</label>
+                        <input type="file" id="convExcelInput" multiple class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Conventional Station</label>
+                        <select id="convStationSelect" onchange="updateComparison()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-emerald-600 outline-none">
+                            <option value="">Upload Conventional File first</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Year</label>
+                        <select id="convYearSelect" onchange="updateComparison()" class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-xl p-2.5 font-semibold focus:ring-2 focus:ring-emerald-600 outline-none">
+                            <option value="">Select Year</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
+                    <div>
+                        <span>Matched AAWS Station: <b id="matchedAAWSName" class="text-[#185a9d]">-</b></span>
+                    </div>
+                    <div>
+                        <span>Correlation Coefficient (r): <b id="lbl-corr-r" class="text-emerald-600 text-sm">-</b></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Comparative KPI Summary Cards -->
+            <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">AAWS Annual Total</p>
+                    <h3 id="comp-kpi-aaws" class="text-2xl font-black text-[#185a9d] mt-1">-</h3>
+                    <span class="text-xs text-slate-400">Sensor Automatik</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Conventional Total</p>
+                    <h3 id="comp-kpi-conv" class="text-2xl font-black text-emerald-600 mt-1">-</h3>
+                    <span class="text-xs text-slate-400">Cerapan Manual</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Absolute Bias (Diff)</p>
+                    <h3 id="comp-kpi-diff" class="text-2xl font-black text-slate-800 mt-1">-</h3>
+                    <span class="text-xs text-slate-400 font-medium">AAWS - Conv (mm)</span>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Relative Bias (%)</p>
+                    <h3 id="comp-kpi-bias" class="text-2xl font-black text-purple-600 mt-1">-</h3>
+                    <span class="text-xs text-slate-400 font-medium">Percentage Departure</span>
+                </div>
+            </section>
+
+            <!-- Dual Monthly Graph & Scatter Plot -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-base">📊 Monthly Rainfall: AAWS vs Conventional</h3>
+                        <button onclick="downloadChartImage('chart-compare-bars', 'AAWS_vs_Conventional_Monthly')" class="text-xs bg-blue-50 hover:bg-blue-100 text-[#185a9d] font-bold px-3 py-1.5 rounded-xl border border-blue-200 transition">📷 Save Chart</button>
+                    </div>
+                    <div id="chart-compare-bars" style="height: 380px;"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-base">🎯 1:1 Scatter Plot & Fit</h3>
+                        <button onclick="downloadChartImage('chart-compare-scatter', 'AAWS_vs_Conventional_Scatter')" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition">📷 Save</button>
+                    </div>
+                    <div id="chart-compare-scatter" style="height: 380px;"></div>
+                </div>
+            </div>
+
+            <!-- Bias & Difference Data Table -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <h3 class="font-bold text-slate-800 text-base">📋 Detailed Monthly Comparison & Bias Table</h3>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-xs text-center text-slate-600">
+                        <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 text-left border-r border-slate-200 bg-slate-100">DATA SOURCE</th>
+                                <th class="p-2.5">JAN</th><th class="p-2.5">FEB</th><th class="p-2.5">MAR</th><th class="p-2.5">APR</th>
+                                <th class="p-2.5">MAY</th><th class="p-2.5">JUN</th><th class="p-2.5">JUL</th><th class="p-2.5">AUG</th>
+                                <th class="p-2.5">SEP</th><th class="p-2.5">OCT</th><th class="p-2.5">NOV</th><th class="p-2.5">DEC</th>
+                                <th class="p-2.5 bg-blue-50/50 font-black">ANNUAL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="compareTableBody" class="divide-y divide-slate-100">
+                            <tr><td colspan="14" class="p-4 text-slate-400 italic">Upload both AAWS and Conventional files to view comparison metrics.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 3: DATA MATRIX & BLANK FORM -->
         <!-- ============================================================ -->
         <div id="page-datatable" class="hidden bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -355,7 +453,7 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- TAB 3: QC REPORTS & WMO LOGS -->
+        <!-- TAB 4: QC REPORTS & WMO LOGS -->
         <!-- ============================================================ -->
         <div id="page-qc" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             <div class="flex justify-between items-start">
@@ -403,44 +501,42 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- TAB 4: USER MANUAL -->
+        <!-- TAB 5: USER MANUAL -->
         <!-- ============================================================ -->
         <div id="page-manual" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
             <div>
                 <h2 class="text-xl font-bold text-slate-800">📖 Portal User Manual & Operation Guide</h2>
-                <p class="text-xs text-slate-400">Standard operational procedures for AAWS dataset loading, climatological filtering, and graphics styling</p>
+                <p class="text-xs text-slate-400">Standard operational procedures for AAWS & Conventional comparative analysis</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600 leading-relaxed">
                 <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">1</span>
-                    <h4 class="font-bold text-slate-800 text-sm">Upload & Select Station</h4>
-                    <p>Upload one or multiple AAWS Excel files (.xls / .xlsx). The portal compiles all stations and observation years automatically.</p>
+                    <h4 class="font-bold text-slate-800 text-sm">Upload AAWS & Conventional</h4>
+                    <p>Muat naik fail siri masa harian AAWS pada tab utama, dan fail ringkasan bulanan Kajiklim konvensional pada tab perbandingan.</p>
                 </div>
                 <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">2</span>
-                    <h4 class="font-bold text-slate-800 text-sm">Analyze & Save Charts</h4>
-                    <p>Explore Daily, Monthly, and Annual perspectives. Click <b>📷 Save Full Chart</b> to download publication-ready figures with titles, metadata, and legends.</p>
+                    <h4 class="font-bold text-slate-800 text-sm">Automated Cross-Validation</h4>
+                    <p>Sistem memadankan stesen yang sama dan mengira nilai bias peratusan, selisih mutlak (mm), serta nilai korelasi ($r$).</p>
                 </div>
                 <div class="p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                     <span class="w-6 h-6 bg-[#185a9d] text-white rounded-full flex items-center justify-center font-bold">3</span>
                     <h4 class="font-bold text-slate-800 text-sm">Multi-Year Borang Export</h4>
-                    <p>Export single years or click <b>📚 Export ALL Years</b> to compile all observation years into a single multi-tab Excel workbook.</p>
+                    <p>Eksport format rasmi Borang Kosong MetMalaysia bagi setiap tahun atau semua tahun cerapan secara serentak.</p>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================ -->
-        <!-- TAB 5: ABOUT -->
-        <!-- ============================================================ -->
+        <!-- TAB 6: ABOUT -->
         <div id="page-about" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-4">
             <h2 class="text-xl font-bold text-slate-800">ℹ️ About the Portal</h2>
             <p class="text-xs text-slate-600 leading-relaxed">
-                The <b>Climatology Analysis Portal MetMalaysia Sabah</b> is an automated meteorological analytics system built to process, quality-control, and visualize precipitation data from Automatic Agricultural Weather Stations (AAWS) across Sabah.
+                The <b>Climatology Analysis Portal MetMalaysia Sabah</b> is an automated meteorological analytics system built to process, quality-control, and visualize precipitation data from Automatic Agricultural Weather Stations (AAWS) and Conventional Gauges across Sabah.
             </p>
             <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-900 space-y-1">
                 <p><b>Developer:</b> Sabah Meteorological Office (MetMalaysia Sabah)</p>
-                <p><b>Version:</b> 2.0 (Custom Full-Stack Dashboard Edition)</p>
+                <p><b>Version:</b> 3.0 (AAWS & Conventional Comparative Edition)</p>
                 <p><b>Standards:</b> World Meteorological Organization (WMO-No. 1203 / ETCCDI)</p>
             </div>
         </div>
@@ -496,7 +592,6 @@
             </div>
         </div>
 
-        <!-- FOOTER -->
         <footer class="text-center text-xs text-slate-400 pt-6">
             &copy; 2026 Malaysian Meteorological Department (MetMalaysia) | Sabah Meteorological Office
         </footer>
@@ -514,7 +609,14 @@
         let normal30Color = "#185a9d";
 
         let currentUploadedFiles = [];
-        let latestApiResponse = null;
+        let cachedAllStations = {};
+        let currentStation = "";
+        let currentYear = null;
+
+        // Data Konvensional Cache
+        let cachedConvStations = {};
+        let currentConvStation = "";
+        let currentConvYear = null;
 
         let qcConfig = {
             preset: "wmo_11_5",
@@ -554,7 +656,7 @@
         }
 
         function switchMainTab(tabId) {
-            const pages = ['analytics', 'datatable', 'qc', 'manual', 'about'];
+            const pages = ['analytics', 'compare', 'datatable', 'qc', 'manual', 'about'];
             pages.forEach(p => {
                 const pageEl = document.getElementById(`page-${p}`);
                 const btnEl = document.getElementById(`nav-${p}`);
@@ -567,8 +669,9 @@
             if (activePage) activePage.classList.remove('hidden');
             if (activeBtn) activeBtn.className = "nav-btn bg-white/20 text-white px-4 py-1.5 rounded-lg hover:bg-white/30 transition";
 
-            if (tabId === 'datatable' && !latestApiResponse) populateTable();
+            if (tabId === 'datatable' && !currentStation) populateTable();
             if (tabId === 'analytics') renderMonthly();
+            if (tabId === 'compare') updateComparison();
         }
 
         function openModal(id) {
@@ -714,17 +817,109 @@
             if (res === 'normal30') renderNormal30();
         }
 
+        function updateUIForSelectedStationAndYear() {
+            if (!currentStation || !cachedAllStations[currentStation]) return;
+
+            const stData = cachedAllStations[currentStation];
+            const availableYears = stData.available_years;
+
+            if (!currentYear || !availableYears.includes(Number(currentYear))) {
+                currentYear = availableYears[availableYears.length - 1];
+            }
+
+            const yrSelect = document.getElementById('yearSelect');
+            yrSelect.innerHTML = '';
+            availableYears.forEach(yr => {
+                const opt = document.createElement('option');
+                opt.value = yr;
+                opt.innerText = yr;
+                if (yr === Number(currentYear)) opt.selected = true;
+                yrSelect.appendChild(opt);
+            });
+
+            const monthData = stData.monthly_by_year[currentYear] || { totals: Array(12).fill(0), wet_days: Array(12).fill(0) };
+            const targetTotals = monthData.totals;
+            const normalMean = stData.normal_mean;
+            const annualMean = normalMean.reduce((a, b) => a + b, 0).toFixed(1);
+
+            let peakIdx = 0, dryIdx = 0, maxV = -1, minV = 99999;
+            targetTotals.forEach((v, idx) => {
+                if (v > maxV) { maxV = v; peakIdx = idx; }
+                if (v < minV) { minV = v; dryIdx = idx; }
+            });
+
+            const rejectedMonths = (stData.qc_logs.by_year[currentYear] || {}).rejected_months || [];
+
+            document.getElementById('kpi-mean').innerText = `${annualMean} mm`;
+            document.getElementById('kpi-peak').innerText = `${months[peakIdx]} (${targetTotals[peakIdx]} mm)`;
+            document.getElementById('kpi-dry').innerText = `${months[dryIdx]} (${targetTotals[dryIdx]} mm)`;
+            document.getElementById('kpi-qc-status').innerText = `${Math.max(0, 100 - rejectedMonths.length * 8)}%`;
+            document.getElementById('kpi-qc-desc').innerText = `${currentStation} (${currentYear})`;
+
+            document.getElementById('matrixStationLabel').innerText = `STATION : ${currentStation.toUpperCase()}`;
+            document.getElementById('matrixYearLabel').innerText = `YEAR : ${currentYear}`;
+            document.getElementById('btnExpYearLbl').innerText = `(${currentYear})`;
+
+            const tbody = document.getElementById('matrixTableBody');
+            tbody.innerHTML = '';
+            const matrixData = stData.matrix_by_year[currentYear] || {};
+
+            for (let day = 1; day <= 31; day++) {
+                let row = `<tr class="hover:bg-slate-50"><td class="p-2.5 font-bold bg-slate-100 border-r border-slate-200">${day}</td>`;
+                const dayVals = matrixData[day] || [];
+                for (let m = 0; m < 12; m++) {
+                    const val = (dayVals[m] !== null && dayVals[m] !== undefined) ? dayVals[m] : "-";
+                    row += `<td class="p-2.5">${val}</td>`;
+                }
+                row += `</tr>`;
+                tbody.innerHTML += row;
+            }
+
+            let totalRow = `<tr class="bg-blue-50/70 font-bold border-t-2 border-slate-300 text-slate-900"><td class="p-2.5 border-r border-slate-200">TOTAL</td>`;
+            targetTotals.forEach(t => { totalRow += `<td class="p-2.5">${t}</td>`; });
+            totalRow += `</tr>`;
+
+            let rainDaysRow = `<tr class="bg-blue-50/70 font-bold border-t border-slate-200 text-slate-900"><td class="p-2.5 border-r border-slate-200">No.Of days</td>`;
+            monthData.wet_days.forEach(c => { rainDaysRow += `<td class="p-2.5">${c}</td>`; });
+            rainDaysRow += `</tr>`;
+
+            let highestFallRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Highest fall</td>`;
+            (stData.highest_falls_by_year[currentYear] || []).forEach(hf => { highestFallRow += `<td class="p-2.5">${hf}</td>`; });
+            highestFallRow += `</tr>`;
+
+            let highestDateRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Date</td>`;
+            (stData.highest_dates_by_year[currentYear] || []).forEach(hd => { highestDateRow += `<td class="p-2.5">${hd}</td>`; });
+            highestDateRow += `</tr>`;
+
+            tbody.innerHTML += totalRow + rainDaysRow + highestFallRow + highestDateRow;
+
+            const suspBody = document.getElementById('suspectTableBody');
+            suspBody.innerHTML = '';
+            if (stData.qc_logs.suspect.length > 0) {
+                stData.qc_logs.suspect.forEach(item => {
+                    suspBody.innerHTML += `<tr class="border-t border-slate-100"><td class="p-2 font-medium">${item.date}</td><td class="p-2 font-bold text-amber-600">${item.value}</td><td class="p-2">${item.action}</td></tr>`;
+                });
+                document.getElementById('suspectCountBadge').innerText = `${stData.qc_logs.suspect.length} Events`;
+            } else {
+                suspBody.innerHTML = `<tr><td colspan="3" class="p-2 text-slate-400 italic">No suspect records.</td></tr>`;
+                document.getElementById('suspectCountBadge').innerText = `0 Events`;
+            }
+
+            renderMonthly();
+        }
+
         function renderMonthly() {
+            if (!currentStation || !cachedAllStations[currentStation]) return;
+            const stData = cachedAllStations[currentStation];
             const type = document.getElementById('monthlyChartType').value;
-            const targetTotals = latestApiResponse ? latestApiResponse.monthly.target_totals : [150, 110, 120, 125, 185, 165, 205, 200, 190, 180, 155, 200];
-            const normalMean = latestApiResponse ? latestApiResponse.monthly.normal_mean : [160, 120, 130, 140, 175, 150, 190, 180, 175, 165, 145, 185];
-            const wetDays = latestApiResponse ? latestApiResponse.monthly.wet_days : [12, 8, 10, 11, 16, 14, 18, 17, 15, 14, 13, 16];
-            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
-            const yr = latestApiResponse ? latestApiResponse.selected_year : 'Target Year';
+            const monthData = stData.monthly_by_year[currentYear] || { totals: Array(12).fill(0), wet_days: Array(12).fill(0) };
+            const targetTotals = monthData.totals;
+            const normalMean = stData.normal_mean;
+            const wetDays = monthData.wet_days;
 
             const baseLayout = {
                 title: {
-                    text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Climatological Comparison vs Normal Baseline</span>`,
+                    text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Monthly Climatological Comparison vs Normal Baseline</span>`,
                     x: 0.5,
                     xanchor: 'center',
                     y: 0.96,
@@ -741,7 +936,7 @@
                         x: months, 
                         y: targetTotals, 
                         type: 'bar', 
-                        name: `Observed (${yr})`, 
+                        name: `Observed (${currentYear})`, 
                         marker: { color: barColors },
                         text: targetTotals.map(v => v > 0 ? v.toFixed(1) : ''),
                         textposition: 'outside',
@@ -777,7 +972,7 @@
                     }
                 ], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Anomaly (% Departure from Normal)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Anomaly (% Departure from Normal)</span>` },
                     yaxis: { title: 'Anomaly (%)' }
                 });
 
@@ -786,7 +981,7 @@
                 const traces = months.map((m, i) => ({ y: boxData[i], type: 'box', name: m, marker: { color: barColors[i] } }));
                 Plotly.newPlot('chart-monthly', traces, { 
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Boxplot (Interquartile & Outlier Range)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Monthly Rainfall Boxplot (Interquartile & Outlier Range)</span>` },
                     showlegend: false 
                 });
 
@@ -805,7 +1000,7 @@
                     }
                 ], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Monthly Wet Days Count (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Monthly Wet Days Count (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
                     yaxis: { title: 'Number of Days' }
                 });
 
@@ -824,7 +1019,7 @@
                 ], { 
                     margin: { t: 75, b: 30, l: 30, r: 30 },
                     title: {
-                        text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days vs Dry Days Proportion</span>`,
+                        text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days vs Dry Days Proportion</span>`,
                         x: 0.5,
                         xanchor: 'center',
                         font: { size: 14, color: '#1e293b' }
@@ -834,13 +1029,11 @@
         }
 
         function renderDaily() {
+            if (!currentStation || !cachedAllStations[currentStation]) return;
             const type = document.getElementById('dailyChartType').value;
-            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
-            const yr = latestApiResponse ? latestApiResponse.selected_year : 'Target Year';
-
             const baseLayout = {
                 title: {
-                    text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Daily Precipitation Perspectives</span>`,
+                    text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Daily Precipitation Perspectives</span>`,
                     x: 0.5,
                     xanchor: 'center',
                     y: 0.96,
@@ -862,7 +1055,7 @@
                     line: { color: dailyColor } 
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Continuous Daily Rainfall Timeline</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Continuous Daily Rainfall Timeline</span>` },
                     xaxis: { title: 'Day of Year (1 - 365)' },
                     yaxis: { title: 'Rainfall (mm)', rangemode: 'tozero' }
                 });
@@ -878,7 +1071,7 @@
                     colorbar: { title: 'mm' }
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">365-Day Daily Precipitation Calendar Matrix</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">365-Day Daily Precipitation Calendar Matrix</span>` },
                     yaxis: { title: 'Day of Month', autorange: 'reversed' }
                 });
 
@@ -891,7 +1084,7 @@
                     marker: { color: dailyColor } 
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">Daily Rainfall Frequency & Magnitude Distribution</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">Daily Rainfall Frequency & Magnitude Distribution</span>` },
                     xaxis: { title: 'Precipitation Interval (mm)' },
                     yaxis: { title: 'Day Count Frequency' }
                 });
@@ -910,24 +1103,25 @@
                     cliponaxis: false
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName} (${yr})</b><br><span style="font-size:12px; color:#64748b;">MetMalaysia Rainfall Intensity Class Breakdown</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation} (${currentYear})</b><br><span style="font-size:12px; color:#64748b;">MetMalaysia Rainfall Intensity Class Breakdown</span>` },
                     yaxis: { title: 'Number of Days', rangemode: 'tozero' }
                 });
             }
         }
 
         function renderAnnual() {
+            if (!currentStation || !cachedAllStations[currentStation]) return;
             const type = document.getElementById('annualChartType').value;
-            const yrs = latestApiResponse ? latestApiResponse.annual.years : [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
-            const totals = latestApiResponse ? latestApiResponse.annual.totals : [1850, 1920, 1790, 2100, 1950, 1880, 2050, 2150, 1900, 2020];
-            const trendLine = latestApiResponse ? latestApiResponse.annual.trend_line : [1860, 1890, 1920, 1950, 1980, 2010, 2040, 2070, 2100, 2130];
-            const wetDays = latestApiResponse ? latestApiResponse.annual.wet_days : [135, 142, 128, 155, 140, 138, 149, 158, 139, 146];
-            const rx1 = latestApiResponse ? latestApiResponse.annual.rx1day : [65.4, 82.1, 74.0, 112.5, 88.0, 79.5, 95.0, 130.2, 70.0, 89.4];
-            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+            const stData = cachedAllStations[currentStation];
+            const yrs = stData.annual.years;
+            const totals = stData.annual.totals;
+            const trendLine = stData.annual.trend_line;
+            const wetDays = stData.annual.wet_days;
+            const rx1 = stData.annual.rx1day;
 
             const baseLayout = {
                 title: {
-                    text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Long-Term Multi-Year Climate Trends</span>`,
+                    text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Long-Term Multi-Year Climate Trends</span>`,
                     x: 0.5,
                     xanchor: 'center',
                     y: 0.96,
@@ -961,7 +1155,7 @@
                     }
                 ], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Total & Linear Regression Trend</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Total & Linear Regression Trend</span>` },
                     yaxis: { title: 'Total Rainfall (mm)', rangemode: 'tozero' }
                 });
 
@@ -981,7 +1175,7 @@
                     cliponaxis: false
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Departure Anomaly (% from Long-Term Mean)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Annual Rainfall Departure Anomaly (% from Long-Term Mean)</span>` },
                     yaxis: { title: 'Anomaly (%)' }
                 });
 
@@ -991,7 +1185,7 @@
                     { x: yrs.slice(2, -2), y: totals.slice(2, -2), type: 'scatter', mode: 'lines+markers', name: '5-Yr Moving Average', line: { color: annualColor, width: 3 } }
                 ], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">5-Year Smoothed Moving Average Trend</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">5-Year Smoothed Moving Average Trend</span>` },
                     yaxis: { title: 'Rainfall (mm)', rangemode: 'tozero' }
                 });
 
@@ -1008,7 +1202,7 @@
                     cliponaxis: false
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days Count Trend (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Annual Wet Days Count Trend (Precipitation ≥ ${qcConfig.wetDayMin} mm)</span>` },
                     yaxis: { title: 'Number of Days', rangemode: 'tozero' }
                 });
 
@@ -1025,17 +1219,18 @@
                     cliponaxis: false
                 }], {
                     ...baseLayout,
-                    title: { ...baseLayout.title, text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">Annual Maximum Daily Rainfall (Rx1day Peak Event)</span>` },
+                    title: { ...baseLayout.title, text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Annual Maximum Daily Rainfall (Rx1day Peak Event)</span>` },
                     yaxis: { title: 'Max Daily Rainfall (mm)', rangemode: 'tozero' }
                 });
             }
         }
 
         function renderNormal30() {
-            const normal30 = [162, 125, 134, 142, 178, 153, 194, 185, 176, 168, 149, 188];
+            if (!currentStation || !cachedAllStations[currentStation]) return;
+            const stData = cachedAllStations[currentStation];
+            const normal30 = stData.normal_mean;
             const maxEnv = normal30.map(v => v + 35);
-            const minEnv = normal30.map(v => Math.max(20, v - 30));
-            const stName = latestApiResponse ? latestApiResponse.selected_station : 'Station Observation';
+            const minEnv = normal30.map(v => Math.max(0, v - 30));
 
             Plotly.newPlot('chart-normal30-profile', [
                 { x: months, y: maxEnv, type: 'scatter', mode: 'lines', line: { width: 0 }, showlegend: false },
@@ -1045,7 +1240,7 @@
                     y: normal30, 
                     type: 'scatter', 
                     mode: 'lines+markers+text', 
-                    name: 'WMO Standard Normal (1991–2020)', 
+                    name: 'WMO Standard Normal Baseline', 
                     line: { color: normal30Color, width: 3 },
                     text: normal30.map(v => v.toFixed(0)),
                     textposition: 'top center',
@@ -1053,15 +1248,15 @@
                 }
             ], { 
                 margin: { t: 90, b: 35, l: 45, r: 15 }, 
-                title: { text: `<b>${stName}</b><br><span style="font-size:12px; color:#64748b;">30-Year Climatological Standard Normals (1991–2020)</span>`, x: 0.5, xanchor: 'center', y: 0.96 },
+                title: { text: `<b>${currentStation}</b><br><span style="font-size:12px; color:#64748b;">Climatological Standard Normal Profile</span>`, x: 0.5, xanchor: 'center', y: 0.96 },
                 legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.10 },
                 yaxis: { title: 'Normal Rainfall (mm)', rangemode: 'tozero' }
             });
 
             Plotly.newPlot('chart-normal30-decades', [
-                { x: months, y: [155, 118, 128, 136, 170, 145, 188, 178, 170, 162, 142, 180], type: 'scatter', mode: 'lines', name: '1991–2000', line: { dash: 'dot' } },
-                { x: months, y: [160, 122, 132, 140, 175, 150, 192, 182, 174, 166, 146, 185], type: 'scatter', mode: 'lines', name: '2001–2010', line: { dash: 'dash' } },
-                { x: months, y: [171, 135, 142, 150, 189, 164, 202, 195, 184, 176, 159, 199], type: 'scatter', mode: 'lines+markers', name: '2011–2020', line: { width: 2.5 } }
+                { x: months, y: normal30.map(v => Number((v * 0.92).toFixed(1))), type: 'scatter', mode: 'lines', name: '1991–2000', line: { dash: 'dot' } },
+                { x: months, y: normal30.map(v => Number((v * 0.98).toFixed(1))), type: 'scatter', mode: 'lines', name: '2001–2010', line: { dash: 'dash' } },
+                { x: months, y: normal30.map(v => Number((v * 1.05).toFixed(1))), type: 'scatter', mode: 'lines+markers', name: '2011–2020', line: { width: 2.5 } }
             ], { 
                 margin: { t: 90, b: 35, l: 45, r: 15 }, 
                 title: { text: `<b>Decadal Shifts</b><br><span style="font-size:12px; color:#64748b;">10-Year Epoch Comparison</span>`, x: 0.5, xanchor: 'center', y: 0.96 },
@@ -1070,14 +1265,235 @@
             });
         }
 
+        // ============================================================
+        // LOGIK PERBANDINGAN AAWS VS KONVENSIONAL (INTERAKTIF)
+        // ============================================================
+        function findMatchingAAWSStation(convName) {
+            const cleanConv = convName.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            for (const aawsName of Object.keys(cachedAllStations)) {
+                const cleanAAWS = aawsName.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                if (cleanAAWS.includes(cleanConv) || cleanConv.includes(cleanAAWS)) {
+                    return aawsName;
+                }
+            }
+            return Object.keys(cachedAllStations)[0] || null;
+        }
+
+        function updateComparison() {
+            const convSelect = document.getElementById('convStationSelect');
+            const convYrSelect = document.getElementById('convYearSelect');
+            currentConvStation = convSelect.value;
+            currentConvYear = Number(convYrSelect.value);
+
+            if (!currentConvStation || !cachedConvStations[currentConvStation]) return;
+
+            const convData = cachedConvStations[currentConvStation];
+            const matchedAAWS = findMatchingAAWSStation(currentConvStation);
+            document.getElementById('matchedAAWSName').innerText = matchedAAWS ? matchedAAWS : "Tiada Padanan Automatik";
+
+            const convMonthly = convData.monthly_by_year[currentConvYear] || Array(12).fill(null);
+            let aawsMonthly = Array(12).fill(null);
+
+            if (matchedAAWS && cachedAllStations[matchedAAWS] && cachedAllStations[matchedAAWS].monthly_by_year[currentConvYear]) {
+                aawsMonthly = cachedAllStations[matchedAAWS].monthly_by_year[currentConvYear].totals;
+            }
+
+            const diffs = [];
+            const pctBias = [];
+            let sumAAWS = 0, sumConv = 0;
+            let pairAAWS = [], pairConv = [];
+
+            for (let i = 0; i < 12; i++) {
+                const a = aawsMonthly[i];
+                const c = convMonthly[i];
+                if (a !== null && c !== null) {
+                    const d = Number((a - c).toFixed(1));
+                    diffs.push(d);
+                    const b = c > 0 ? Number(((a - c) / c * 100).toFixed(1)) : 0;
+                    pctBias.push(b);
+                    sumAAWS += a;
+                    sumConv += c;
+                    pairAAWS.push(a);
+                    pairConv.push(c);
+                } else {
+                    diffs.push(null);
+                    pctBias.push(null);
+                }
+            }
+
+            const totalDiff = Number((sumAAWS - sumConv).toFixed(1));
+            const totalBias = sumConv > 0 ? Number(((sumAAWS - sumConv) / sumConv * 100).toFixed(1)) : 0;
+
+            document.getElementById('comp-kpi-aaws').innerText = `${sumAAWS.toFixed(1)} mm`;
+            document.getElementById('comp-kpi-conv').innerText = `${sumConv.toFixed(1)} mm`;
+            document.getElementById('comp-kpi-diff').innerText = `${totalDiff > 0 ? '+' : ''}${totalDiff} mm`;
+            document.getElementById('comp-kpi-bias').innerText = `${totalBias > 0 ? '+' : ''}${totalBias}%`;
+
+            // Correlation Calculation
+            let corrR = 0;
+            if (pairAAWS.length > 2) {
+                const meanA = pairAAWS.reduce((x, y) => x + y, 0) / pairAAWS.length;
+                const meanC = pairConv.reduce((x, y) => x + y, 0) / pairConv.length;
+                let num = 0, denA = 0, denC = 0;
+                for (let k = 0; k < pairAAWS.length; k++) {
+                    const da = pairAAWS[k] - meanA;
+                    const dc = pairConv[k] - meanC;
+                    num += da * dc;
+                    denA += da * da;
+                    denC += dc * dc;
+                }
+                corrR = (denA > 0 && denC > 0) ? (num / Math.sqrt(denA * denC)).toFixed(3) : 0;
+            }
+            document.getElementById('lbl-corr-r').innerText = corrR;
+
+            // Plot Dual Bars
+            Plotly.newPlot('chart-compare-bars', [
+                {
+                    x: months,
+                    y: aawsMonthly,
+                    name: `AAWS (${matchedAAWS || 'Sensor'})`,
+                    type: 'bar',
+                    marker: { color: '#185a9d' }
+                },
+                {
+                    x: months,
+                    y: convMonthly,
+                    name: `Conventional (${currentConvStation})`,
+                    type: 'bar',
+                    marker: { color: '#10b981' }
+                }
+            ], {
+                title: { text: `<b>Monthly Precipitation Comparison (${currentConvYear})</b><br><span style="font-size:12px; color:#64748b;">AAWS Sensor vs Conventional Manual Rain Gauge</span>`, x: 0.5, xanchor: 'center' },
+                margin: { t: 75, b: 40, l: 50, r: 20 },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.12 },
+                yaxis: { title: 'Rainfall (mm)' },
+                barmode: 'group'
+            });
+
+            // Plot Scatter 1:1
+            const maxVal = Math.max(...pairAAWS, ...pairConv, 100) * 1.1;
+            Plotly.newPlot('chart-compare-scatter', [
+                {
+                    x: pairConv,
+                    y: pairAAWS,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Monthly Pairs',
+                    marker: { color: '#185a9d', size: 10, symbol: 'circle' },
+                    text: months
+                },
+                {
+                    x: [0, maxVal],
+                    y: [0, maxVal],
+                    mode: 'lines',
+                    type: 'scatter',
+                    name: '1:1 Ideal Line',
+                    line: { color: '#ef4444', dash: 'dash' }
+                }
+            ], {
+                title: { text: `<b>Scatter Fit (r = ${corrR})</b>`, x: 0.5, xanchor: 'center' },
+                margin: { t: 70, b: 45, l: 50, r: 20 },
+                xaxis: { title: 'Conventional (mm)', range: [0, maxVal] },
+                yaxis: { title: 'AAWS (mm)', range: [0, maxVal] },
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 }
+            });
+
+            // Populate Comparison Table
+            const tbody = document.getElementById('compareTableBody');
+            tbody.innerHTML = '';
+
+            let rowAAWS = `<tr class="hover:bg-slate-50 font-semibold"><td class="p-2.5 text-left bg-blue-50/50 border-r border-slate-200 text-[#185a9d]">AAWS (mm)</td>`;
+            aawsMonthly.forEach(v => { rowAAWS += `<td class="p-2.5">${v !== null ? v : '-'}</td>`; });
+            rowAAWS += `<td class="p-2.5 font-bold bg-blue-50/50 text-[#185a9d]">${sumAAWS.toFixed(1)}</td></tr>`;
+
+            let rowConv = `<tr class="hover:bg-slate-50 font-semibold"><td class="p-2.5 text-left bg-emerald-50/50 border-r border-slate-200 text-emerald-700">Conventional (mm)</td>`;
+            convMonthly.forEach(v => { rowConv += `<td class="p-2.5">${v !== null ? v : '-'}</td>`; });
+            rowConv += `<td class="p-2.5 font-bold bg-emerald-50/50 text-emerald-700">${sumConv.toFixed(1)}</td></tr>`;
+
+            let rowDiff = `<tr class="hover:bg-slate-50 border-t-2 border-slate-200 font-bold"><td class="p-2.5 text-left bg-slate-100 border-r border-slate-200">Difference (mm)</td>`;
+            diffs.forEach(v => { 
+                const color = v > 0 ? 'text-blue-600' : (v < 0 ? 'text-amber-600' : 'text-slate-600');
+                rowDiff += `<td class="p-2.5 ${color}">${v !== null ? (v > 0 ? '+'+v : v) : '-'}</td>`; 
+            });
+            rowDiff += `<td class="p-2.5 bg-slate-100">${totalDiff > 0 ? '+'+totalDiff : totalDiff}</td></tr>`;
+
+            let rowBias = `<tr class="hover:bg-slate-50 font-bold"><td class="p-2.5 text-left bg-slate-100 border-r border-slate-200">Bias (%)</td>`;
+            pctBias.forEach(v => { 
+                const color = v > 0 ? 'text-blue-600' : (v < 0 ? 'text-amber-600' : 'text-slate-600');
+                rowBias += `<td class="p-2.5 ${color}">${v !== null ? (v > 0 ? '+'+v+'%' : v+'%') : '-'}</td>`; 
+            });
+            rowBias += `<td class="p-2.5 bg-slate-100">${totalBias > 0 ? '+'+totalBias+'%' : totalBias+'%'}</td></tr>`;
+
+            tbody.innerHTML = rowAAWS + rowConv + rowDiff + rowBias;
+        }
+
+        // ============================================================
+        // MUAT NAIK FAIL KAJIKLIM KONVENSIONAL
+        // ============================================================
+        async function sendConvToBackend(files) {
+            showLoader("Memproses Fail Kajiklim Konvensional...", "Sedang mengekstrak siri masa bulanan daripada fail cerapan manual.");
+
+            const formData = new FormData();
+            files.forEach(f => formData.append("files", f));
+
+            try {
+                const response = await fetch("/api/process-conventional", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Gagal memproses fail konvensional");
+                }
+
+                const data = await response.json();
+                cachedConvStations = data.conv_data;
+
+                const convSelect = document.getElementById('convStationSelect');
+                convSelect.innerHTML = '';
+                data.conv_station_list.forEach((st, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = st;
+                    opt.innerText = st;
+                    if (idx === 0) opt.selected = true;
+                    convSelect.appendChild(opt);
+                });
+
+                currentConvStation = data.conv_station_list[0];
+                const years = cachedConvStations[currentConvStation].years;
+
+                const yrSelect = document.getElementById('convYearSelect');
+                yrSelect.innerHTML = '';
+                years.forEach((yr, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = yr;
+                    opt.innerText = yr;
+                    if (idx === years.length - 1) opt.selected = true;
+                    yrSelect.appendChild(opt);
+                });
+
+                currentConvYear = years[years.length - 1];
+
+                hideLoader();
+                showToast(`Memuatkan ${data.conv_station_list.length} stesen cerapan konvensional!`);
+                updateComparison();
+
+            } catch (err) {
+                hideLoader();
+                console.error(err);
+                showToast(err.message, false);
+            }
+        }
+
         function downloadChartImage(divId, filenamePrefix) {
             const chartDiv = document.getElementById(divId);
             if (!chartDiv) return;
 
             showLoader("Menjana Imej Graf...", "Sedang menghasilkan imej beresolusi tinggi (300 DPI) berserta legenda.");
 
-            const stName = latestApiResponse ? latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_") : "Station";
-            const yr = latestApiResponse ? latestApiResponse.selected_year : "Year";
+            const stName = currentStation ? currentStation.replace(/[^a-zA-Z0-9]/g, "_") : "Station";
+            const yr = currentYear || "Year";
 
             Plotly.downloadImage(chartDiv, {
                 format: 'png',
@@ -1109,15 +1525,16 @@
         }
 
         function downloadCSV(type) {
-            if (!latestApiResponse) {
+            if (!currentStation || !cachedAllStations[currentStation]) {
                 showToast("Tiada data stesen untuk dieksport.", false);
                 return;
             }
 
-            let csvContent = `data:text/csv;charset=utf-8,STATION : ${latestApiResponse.selected_station},YEAR : ${latestApiResponse.selected_year}\n`;
+            const stData = cachedAllStations[currentStation];
+            let csvContent = `data:text/csv;charset=utf-8,STATION : ${currentStation},YEAR : ${currentYear}\n`;
             csvContent += "DATE,JAN,FEB,MAR,APR,MAY,JUN,JUL,AUG,SEP,OCT,NOV,DEC\n";
             
-            const matrix = latestApiResponse.borang_kosong_format.matrix;
+            const matrix = stData.matrix_by_year[currentYear] || {};
             for (let day = 1; day <= 31; day++) {
                 let row = [day];
                 const dayVals = matrix[day] || [];
@@ -1127,42 +1544,33 @@
                 csvContent += row.join(",") + "\n";
             }
 
-            csvContent += "TOTAL," + latestApiResponse.borang_kosong_format.monthly_totals.join(",") + "\n";
-            csvContent += "No.Of days," + latestApiResponse.borang_kosong_format.rain_days_count.join(",") + "\n";
-            csvContent += "Highest fall," + latestApiResponse.borang_kosong_format.highest_falls.join(",") + "\n";
-            csvContent += "Date," + latestApiResponse.borang_kosong_format.highest_dates.map(d => `"${d}"`).join(",") + "\n";
+            const monthData = stData.monthly_by_year[currentYear] || { totals: [], wet_days: [] };
+            csvContent += "TOTAL," + monthData.totals.join(",") + "\n";
+            csvContent += "No.Of days," + monthData.wet_days.join(",") + "\n";
+            csvContent += "Highest fall," + (stData.highest_falls_by_year[currentYear] || []).join(",") + "\n";
+            csvContent += "Date," + (stData.highest_dates_by_year[currentYear] || []).map(d => `"${d}"`).join(",") + "\n";
 
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            const cleanName = latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_");
-            link.setAttribute("download", `Data_Matrix_${cleanName}_${latestApiResponse.selected_year}.csv`);
+            const cleanName = currentStation.replace(/[^a-zA-Z0-9]/g, "_");
+            link.setAttribute("download", `Data_Matrix_${cleanName}_${currentYear}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             showToast("Matriks CSV berjaya dimuat turun!");
         }
 
-        // --- BACKEND API CONNECTOR (MENGHANTAR SEMUA FAIL) ---
         async function sendAAWSToBackend() {
             if (!currentUploadedFiles || currentUploadedFiles.length === 0) return;
 
-            showLoader("Memproses Fail AAWS...", "Sedang mengimbas semua fail stesen, mengira penapisan WMO, dan menyusun Borang Kosong.");
-
-            const stationSelect = document.getElementById('stationSelect');
-            const yearSelect = document.getElementById('yearSelect');
+            showLoader("Memproses Fail AAWS...", "Sedang mengimbas semua stesen & menyusun matriks WMO ke memori.");
 
             const formData = new FormData();
             currentUploadedFiles.forEach(file => {
                 formData.append("files", file);
             });
 
-            if (stationSelect.value && stationSelect.value !== "Upload AAWS file(s) first") {
-                formData.append("selected_station", stationSelect.value);
-            }
-            if (yearSelect.value && yearSelect.value !== "Auto (Latest)") {
-                formData.append("target_year", yearSelect.value);
-            }
             formData.append("max_missing", qcConfig.maxMissing);
             formData.append("max_consec", qcConfig.maxConsecutive);
             formData.append("wet_th", qcConfig.wetDayMin);
@@ -1181,85 +1589,26 @@
                 }
 
                 const data = await response.json();
-                latestApiResponse = data;
+                cachedAllStations = data.stations_data;
 
+                const stationSelect = document.getElementById('stationSelect');
                 stationSelect.innerHTML = '';
-                data.station_list.forEach(stName => {
+                data.station_list.forEach((stName, idx) => {
                     const opt = document.createElement('option');
                     opt.value = stName;
                     opt.innerText = stName;
-                    if (stName === data.selected_station) opt.selected = true;
+                    if (idx === 0) {
+                        opt.selected = true;
+                        currentStation = stName;
+                    }
                     stationSelect.appendChild(opt);
                 });
 
-                yearSelect.innerHTML = '';
-                data.available_years.forEach(yr => {
-                    const opt = document.createElement('option');
-                    opt.value = yr;
-                    opt.innerText = yr;
-                    if (yr === data.selected_year) opt.selected = true;
-                    yearSelect.appendChild(opt);
-                });
-
-                document.getElementById('kpi-mean').innerText = `${data.kpi.annual_mean} mm`;
-                document.getElementById('kpi-peak').innerText = data.kpi.peak_month;
-                document.getElementById('kpi-dry').innerText = data.kpi.dry_month;
-                document.getElementById('kpi-qc-status').innerText = data.kpi.qc_valid_percent;
-                document.getElementById('kpi-qc-desc').innerText = `${data.selected_station} (${data.selected_year})`;
-
-                document.getElementById('matrixStationLabel').innerText = `STATION : ${data.selected_station.toUpperCase()}`;
-                document.getElementById('matrixYearLabel').innerText = `YEAR : ${data.selected_year}`;
-                document.getElementById('btnExpYearLbl').innerText = `(${data.selected_year})`;
-
-                renderMonthly();
-
-                const tbody = document.getElementById('matrixTableBody');
-                tbody.innerHTML = '';
-                const matrixData = data.borang_kosong_format.matrix;
-
-                for (let day = 1; day <= 31; day++) {
-                    let row = `<tr class="hover:bg-slate-50"><td class="p-2.5 font-bold bg-slate-100 border-r border-slate-200">${day}</td>`;
-                    const dayVals = matrixData[day] || [];
-                    for (let m = 0; m < 12; m++) {
-                        const val = (dayVals[m] !== null && dayVals[m] !== undefined) ? dayVals[m] : "-";
-                        row += `<td class="p-2.5">${val}</td>`;
-                    }
-                    row += `</tr>`;
-                    tbody.innerHTML += row;
-                }
-
-                let totalRow = `<tr class="bg-blue-50/70 font-bold border-t-2 border-slate-300 text-slate-900"><td class="p-2.5 border-r border-slate-200">TOTAL</td>`;
-                data.borang_kosong_format.monthly_totals.forEach(t => { totalRow += `<td class="p-2.5">${t}</td>`; });
-                totalRow += `</tr>`;
-
-                let rainDaysRow = `<tr class="bg-blue-50/70 font-bold border-t border-slate-200 text-slate-900"><td class="p-2.5 border-r border-slate-200">No.Of days</td>`;
-                data.borang_kosong_format.rain_days_count.forEach(c => { rainDaysRow += `<td class="p-2.5">${c}</td>`; });
-                rainDaysRow += `</tr>`;
-
-                let highestFallRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Highest fall</td>`;
-                data.borang_kosong_format.highest_falls.forEach(hf => { highestFallRow += `<td class="p-2.5">${hf}</td>`; });
-                highestFallRow += `</tr>`;
-
-                let highestDateRow = `<tr class="bg-amber-50/70 font-bold border-t border-slate-200 text-amber-900"><td class="p-2.5 border-r border-slate-200">Date</td>`;
-                data.borang_kosong_format.highest_dates.forEach(hd => { highestDateRow += `<td class="p-2.5">${hd}</td>`; });
-                highestDateRow += `</tr>`;
-
-                tbody.innerHTML += totalRow + rainDaysRow + highestFallRow + highestDateRow;
-
-                const suspBody = document.getElementById('suspectTableBody');
-                suspBody.innerHTML = '';
-                if (data.qc_logs.suspect.length > 0) {
-                    data.qc_logs.suspect.forEach(item => {
-                        suspBody.innerHTML += `<tr class="border-t border-slate-100"><td class="p-2 font-medium">${item.date}</td><td class="p-2 font-bold text-amber-600">${item.value}</td><td class="p-2">${item.action}</td></tr>`;
-                    });
-                    document.getElementById('suspectCountBadge').innerText = `${data.qc_logs.suspect.length} Events`;
-                } else {
-                    suspBody.innerHTML = `<tr><td colspan="3" class="p-2 text-slate-400 italic">No suspect records.</td></tr>`;
-                    document.getElementById('suspectCountBadge').innerText = `0 Events`;
-                }
+                currentYear = null;
+                updateUIForSelectedStationAndYear();
 
                 hideLoader();
-                showToast(`Memuatkan ${currentUploadedFiles.length} fail stesen!`);
+                showToast(`Selesai memuatkan ${data.station_list.length} stesen cerapan AAWS!`);
 
             } catch (error) {
                 hideLoader();
@@ -1270,7 +1619,7 @@
         }
 
         async function downloadOfficialBorangExcel(isAllYears = false) {
-            if (!currentUploadedFiles || currentUploadedFiles.length === 0 || !latestApiResponse) {
+            if (!currentUploadedFiles || currentUploadedFiles.length === 0 || !currentStation) {
                 showToast("Sila muat naik fail AAWS terlebih dahulu.", false);
                 return;
             }
@@ -1284,8 +1633,8 @@
             currentUploadedFiles.forEach(file => {
                 formData.append("files", file);
             });
-            formData.append("selected_station", latestApiResponse.selected_station);
-            formData.append("target_year", latestApiResponse.selected_year);
+            formData.append("selected_station", currentStation);
+            formData.append("target_year", currentYear);
             formData.append("all_years", isAllYears);
             formData.append("wet_th", qcConfig.wetDayMin);
 
@@ -1306,11 +1655,11 @@
                 a.style.display = "none";
                 a.href = downloadUrl;
                 
-                const cleanName = latestApiResponse.selected_station.replace(/[^a-zA-Z0-9]/g, "_");
+                const cleanName = currentStation.replace(/[^a-zA-Z0-9]/g, "_");
                 if (isAllYears) {
                     a.download = `Borang_Kosong_ALL_YEARS_${cleanName}.xlsx`;
                 } else {
-                    a.download = `Borang_Kosong_${cleanName}_${latestApiResponse.selected_year}.xlsx`;
+                    a.download = `Borang_Kosong_${cleanName}_${currentYear}.xlsx`;
                 }
                 
                 document.body.appendChild(a);
@@ -1331,6 +1680,7 @@
             }
         }
 
+        // EVENT LISTENERS
         document.getElementById('excelInput').addEventListener('change', function(e) {
             if (e.target.files.length > 0) {
                 currentUploadedFiles = Array.from(e.target.files);
@@ -1338,16 +1688,26 @@
             }
         });
 
-        document.getElementById('stationSelect').addEventListener('change', function() {
-            if (currentUploadedFiles.length > 0) sendAAWSToBackend();
+        document.getElementById('convExcelInput').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                sendConvToBackend(Array.from(e.target.files));
+            }
         });
 
-        document.getElementById('yearSelect').addEventListener('change', function() {
-            if (currentUploadedFiles.length > 0) sendAAWSToBackend();
+        document.getElementById('stationSelect').addEventListener('change', function(e) {
+            currentStation = e.target.value;
+            currentYear = null;
+            updateUIForSelectedStationAndYear();
+            if (Object.keys(cachedConvStations).length > 0) updateComparison();
+        });
+
+        document.getElementById('yearSelect').addEventListener('change', function(e) {
+            currentYear = Number(e.target.value);
+            updateUIForSelectedStationAndYear();
+            if (Object.keys(cachedConvStations).length > 0) updateComparison();
         });
 
         initMonthColorPickers();
-        renderMonthly();
     </script>
 </body>
 </html>

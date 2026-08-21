@@ -28,15 +28,14 @@ async def read_index():
     return {"message": "index.html tidak dijumpai"}
 
 # ============================================================
-# FUNGSI PEMPROSESAN DATA CEPAT (SINGLE-PASS IN-MEMORY)
+# 1. PARSER FAIL AAWS (SIRI MASA HARIAN)
 # ============================================================
 def parse_full_aaws_file(file_bytes: bytes, filename: str):
     engine = "xlrd" if filename.endswith(".xls") else "openpyxl"
     try:
-        # Membaca kesemua helaian serentak ke dalam memori
         all_sheets = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None, header=None, engine=engine)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Gagal membaca fail Excel: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Gagal membaca fail AAWS Excel: {str(e)}")
 
     stations = {}
 
@@ -47,7 +46,6 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
         if len(df_raw) < 5:
             continue
 
-        # 1. Ekstrak Nama Stesen (Imbas 10 baris teratas)
         station_name = sheet_name
         for idx in range(min(10, len(df_raw))):
             row_str = " ".join([str(x) for x in df_raw.iloc[idx].values])
@@ -58,7 +56,6 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
                     station_name = extracted_st
                 break
 
-        # 2. Cari Baris Pengepala (Header Row)
         header_row = None
         for idx in range(min(20, len(df_raw))):
             row_vals = [str(x).strip().lower() for x in df_raw.iloc[idx].values]
@@ -67,7 +64,6 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
                 break
 
         if header_row is not None:
-            # Potong DataFrame terus tanpa membuka semula fail
             data_df = df_raw.iloc[header_row + 1:, 0:4].copy()
             data_df.columns = ["Year", "Month", "Day", "Rainfall"]
 
@@ -95,7 +91,266 @@ def parse_full_aaws_file(file_bytes: bytes, filename: str):
 
     return stations
 
+# ============================================================
+# 2. PARSER FAIL KAJIKLIM KONVENSIONAL (RINGKASAN BULANAN)
+# ============================================================
+def parse_conventional_file(file_bytes: bytes, filename: str):
+    engine = "xlrd" if filename.endswith(".xls") else "openpyxl"
+    try:
+        all_sheets = pd.read_excel(io.BytesIO(file_bytes), sheet_name=None, header=None, engine=engine)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Gagal membaca fail Konvensional: {str(e)}")
 
+    conv_stations = {}
+
+    for sheet_name, df in all_sheets.items():
+        if sheet_name.lower().strip() in ['format', 'datalist', 'list', 'index']:
+            continue
+
+        jan_row = None
+        col_offset = 0
+        for r in range(min(15, len(df))):
+            row_str = [str(x).upper().strip() for x in df.iloc[r].values]
+            if "JAN" in row_str and "FEB" in row_str:
+                jan_row = r
+                col_offset = row_str.index("JAN")
+                break
+
+        if jan_row is None:
+            continue
+
+        year_col = col_offset - 1
+        station_name = sheet_name
+
+        for r in range(jan_row):
+            for c in range(df.shape[1]):
+                v = str(df.iloc[r, c])
+                if "station:" in v.lower():
+                    extracted = v.split(":", 1)[-1].strip()
+                    if not extracted and c + 1 < df.shape[1]:
+                        extracted = str(df.iloc[r, c+1]).strip()
+                    if extracted and extracted.lower() != "nan":
+                        station_name = extracted
+                    break
+
+        records_by_year = {}
+        for r in range(jan_row + 1, len(df)):
+            yr_val = df.iloc[r, year_col]
+            try:
+                yr = int(float(str(yr_val).strip()))
+                if yr < 1900 or yr > 2100:
+                    continue
+            except:
+                continue
+
+            months_val = []
+            for m_idx in range(12):
+                raw_v = df.iloc[r, col_offset + m_idx]
+                v_str = str(raw_v).strip().replace("..", ".").replace(",", ".")
+                try:
+                    val = float(v_str)
+                    if val < 0:
+                        val = None
+                except:
+                    val = None
+                months_val.append(round(val, 1) if val is not None else None)
+
+            records_by_year[yr] = months_val
+
+        if records_by_year:
+            conv_stations[station_name] = {
+                "sheet_name": sheet_name,
+                "years": sorted(list(records_by_year.keys())),
+                "monthly_by_year": records_by_year
+            }
+
+    return conv_stations
+
+def calculate_station_payload(df: pd.DataFrame, available_years: list, max_missing: int, max_consec: int, wet_th: float, suspect_th: float, extreme_th: float):
+    qc_logs_all = {}
+    monthly_by_year = {}
+    matrix_by_year = {}
+    highest_falls_by_year = {}
+    highest_dates_by_year = {}
+
+    annual_totals = []
+    annual_wet_days = []
+    rx1day_list = []
+
+    for yr in available_years:
+        yr_df = df[df["Year"] == yr]
+        month_sums = []
+        wet_days_counts = []
+        rejected_months = []
+
+        for m in range(1, 13):
+            m_df = yr_df[yr_df["Month"] == m]
+            missing_count = m_df["Rainfall"].isna().sum()
+
+            is_na = m_df["Rainfall"].isna().astype(int)
+            consec_missing = is_na.groupby((~is_na.astype(bool)).cumsum()).sum().max() if not m_df.empty else 31
+
+            if missing_count > max_missing or consec_missing > max_consec or m_df.empty:
+                month_sums.append(np.nan)
+                wet_days_counts.append(0)
+                rejected_months.append(f"{MONTH_NAMES[m-1]} {yr}")
+            else:
+                month_sums.append(float(m_df["Rainfall"].sum()))
+                wet_days_counts.append(int((m_df["Rainfall"] >= wet_th).sum()))
+
+        monthly_by_year[yr] = {"totals": month_sums, "wet_days": wet_days_counts}
+
+        borang_matrix = {}
+        hf_list = []
+        hd_list = []
+        for m in range(1, 13):
+            m_df = yr_df[yr_df["Month"] == m]
+            if not m_df.empty and m_df["Rainfall"].notna().any():
+                max_val = m_df["Rainfall"].max()
+                if pd.notna(max_val) and max_val > 0:
+                    hf_list.append(round(float(max_val), 1))
+                    top_days = m_df[m_df["Rainfall"] == max_val]["Day"].tolist()
+                    hd_list.append(",".join([str(d) for d in top_days]))
+                else:
+                    hf_list.append(0.0)
+                    hd_list.append("-")
+            else:
+                hf_list.append(0.0)
+                hd_list.append("-")
+
+        for d in range(1, 32):
+            borang_matrix[d] = []
+            for m in range(1, 13):
+                val = yr_df[(yr_df["Month"] == m) & (yr_df["Day"] == d)]["Rainfall"].values
+                if len(val) > 0 and pd.notna(val[0]):
+                    borang_matrix[d].append(round(float(val[0]), 1))
+                else:
+                    borang_matrix[d].append(None)
+
+        matrix_by_year[yr] = borang_matrix
+        highest_falls_by_year[yr] = hf_list
+        highest_dates_by_year[yr] = hd_list
+
+        annual_totals.append(round(float(yr_df["Rainfall"].sum()), 1))
+        annual_wet_days.append(int((yr_df["Rainfall"] >= wet_th).sum()))
+        rx1 = yr_df["Rainfall"].max()
+        rx1day_list.append(round(float(rx1), 1) if pd.notna(rx1) else 0.0)
+
+        qc_logs_all[yr] = {"rejected_months": rejected_months}
+
+    all_totals_matrix = np.array([v["totals"] for v in monthly_by_year.values()])
+    normal_mean = np.nanmean(all_totals_matrix, axis=0)
+    normal_mean = np.where(np.isnan(normal_mean), 0, normal_mean).round(1).tolist()
+
+    x = np.arange(len(available_years))
+    if len(x) > 1:
+        slope, intercept = np.polyfit(x, annual_totals, 1)
+        trend_line = [round(float(slope * xi + intercept), 1) for xi in x]
+    else:
+        trend_line = annual_totals
+
+    suspect_list = []
+    for _, r in df[df["Rainfall"] > suspect_th].iterrows():
+        suspect_list.append({
+            "date": f"{int(r['Year'])}-{int(r['Month']):02d}-{int(r['Day']):02d}",
+            "value": float(r["Rainfall"]),
+            "action": "Flagged (> Suspect Limit)"
+        })
+
+    extreme_list = []
+    for _, r in df[df["Rainfall"] > extreme_th].iterrows():
+        extreme_list.append({
+            "date": f"{int(r['Year'])}-{int(r['Month']):02d}-{int(r['Day']):02d}",
+            "value": float(r["Rainfall"]),
+            "action": "Flagged (> Extreme Limit)"
+        })
+
+    return {
+        "available_years": available_years,
+        "normal_mean": normal_mean,
+        "annual": {
+            "years": available_years,
+            "totals": annual_totals,
+            "trend_line": trend_line,
+            "wet_days": annual_wet_days,
+            "rx1day": rx1day_list
+        },
+        "monthly_by_year": {
+            yr: {
+                "totals": [0 if np.isnan(v) else round(v, 1) for v in monthly_by_year[yr]["totals"]],
+                "wet_days": monthly_by_year[yr]["wet_days"]
+            } for yr in available_years
+        },
+        "matrix_by_year": matrix_by_year,
+        "highest_falls_by_year": highest_falls_by_year,
+        "highest_dates_by_year": highest_dates_by_year,
+        "qc_logs": {
+            "suspect": suspect_list,
+            "extreme": extreme_list,
+            "by_year": qc_logs_all
+        }
+    }
+
+@app.post("/api/process-aaws")
+async def process_aaws(
+    files: List[UploadFile] = File(...),
+    max_missing: int = Form(10),
+    max_consec: int = Form(4),
+    wet_th: float = Form(0.1),
+    suspect_th: float = Form(150.0),
+    extreme_th: float = Form(250.0)
+):
+    all_stations_dict = {}
+
+    for file in files:
+        contents = await file.read()
+        try:
+            st_dict = parse_full_aaws_file(contents, file.filename)
+            all_stations_dict.update(st_dict)
+        except Exception:
+            continue
+
+    if not all_stations_dict:
+        raise HTTPException(status_code=400, detail="Format lajur Year, Month, Day, Rainfall tidak ditemui dalam fail yang dimuat naik.")
+
+    stations_payload = {}
+    for st_name, st_info in all_stations_dict.items():
+        stations_payload[st_name] = calculate_station_payload(
+            st_info["data"], st_info["years"], max_missing, max_consec, wet_th, suspect_th, extreme_th
+        )
+
+    return {
+        "station_list": sorted(list(stations_payload.keys())),
+        "stations_data": stations_payload
+    }
+
+# ============================================================
+# 3. ENDPOINT PROSES FAIL KONVENSIONAL UNTUK PERBANDINGAN
+# ============================================================
+@app.post("/api/process-conventional")
+async def process_conventional(
+    files: List[UploadFile] = File(...)
+):
+    all_conv_dict = {}
+    for file in files:
+        contents = await file.read()
+        try:
+            c_dict = parse_conventional_file(contents, file.filename)
+            all_conv_dict.update(c_dict)
+        except Exception:
+            continue
+
+    if not all_conv_dict:
+        raise HTTPException(status_code=400, detail="Tiada helaian cerapan konvensional sah dijumpai.")
+
+    return {
+        "conv_station_list": sorted(list(all_conv_dict.keys())),
+        "conv_data": all_conv_dict
+    }
+
+# ============================================================
+# 4. EXCEL BORANG EXPORT
+# ============================================================
 def write_single_sheet_borang(ws, station_name: str, year: int, df_station: pd.DataFrame, wet_th: float = 0.1):
     target_df = df_station[df_station["Year"] == year]
 
@@ -242,181 +497,6 @@ def write_single_sheet_borang(ws, station_name: str, year: int, df_station: pd.D
     for col_letter in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']:
         ws.column_dimensions[col_letter].width = 8
 
-
-# ============================================================
-# 1. ENDPOINT PROSES MULTIPLE FILES
-# ============================================================
-@app.post("/api/process-aaws")
-async def process_aaws(
-    files: List[UploadFile] = File(...),
-    selected_station: Optional[str] = Form(None),
-    target_year: Optional[int] = Form(None),
-    max_missing: int = Form(10),
-    max_consec: int = Form(4),
-    wet_th: float = Form(0.1),
-    suspect_th: float = Form(150.0),
-    extreme_th: float = Form(250.0)
-):
-    all_stations_dict = {}
-
-    for file in files:
-        contents = await file.read()
-        try:
-            st_dict = parse_full_aaws_file(contents, file.filename)
-            all_stations_dict.update(st_dict)
-        except Exception:
-            continue
-
-    if not all_stations_dict:
-        raise HTTPException(status_code=400, detail="Format lajur Year, Month, Day, Rainfall tidak ditemui dalam fail yang dimuat naik.")
-
-    station_names = sorted(list(all_stations_dict.keys()))
-
-    if selected_station not in all_stations_dict:
-        selected_station = station_names[0]
-
-    st_info = all_stations_dict[selected_station]
-    df = st_info["data"]
-    available_years = st_info["years"]
-
-    if target_year is None or target_year not in available_years:
-        target_year = available_years[-1]
-
-    qc_logs = {"suspect": [], "extreme": [], "rejected_months": []}
-
-    for _, r in df[df["Rainfall"] > suspect_th].iterrows():
-        qc_logs["suspect"].append({
-            "date": f"{int(r['Year'])}-{int(r['Month']):02d}-{int(r['Day']):02d}",
-            "value": float(r["Rainfall"]),
-            "action": "Flagged (> Suspect Limit)"
-        })
-
-    for _, r in df[df["Rainfall"] > extreme_th].iterrows():
-        qc_logs["extreme"].append({
-            "date": f"{int(r['Year'])}-{int(r['Month']):02d}-{int(r['Day']):02d}",
-            "value": float(r["Rainfall"]),
-            "action": "Flagged (> Extreme Limit)"
-        })
-
-    monthly_data_by_year = {}
-    for yr in available_years:
-        yr_df = df[df["Year"] == yr]
-        month_sums = []
-        wet_days_counts = []
-
-        for m in range(1, 13):
-            m_df = yr_df[yr_df["Month"] == m]
-            missing_count = m_df["Rainfall"].isna().sum()
-
-            is_na = m_df["Rainfall"].isna().astype(int)
-            consec_missing = is_na.groupby((~is_na.astype(bool)).cumsum()).sum().max() if not m_df.empty else 31
-
-            if missing_count > max_missing or consec_missing > max_consec or m_df.empty:
-                month_sums.append(np.nan)
-                wet_days_counts.append(0)
-                if yr == target_year:
-                    qc_logs["rejected_months"].append(f"{MONTH_NAMES[m-1]} {yr}")
-            else:
-                month_sums.append(float(m_df["Rainfall"].sum()))
-                wet_days_counts.append(int((m_df["Rainfall"] >= wet_th).sum()))
-
-        monthly_data_by_year[yr] = {"totals": month_sums, "wet_days": wet_days_counts}
-
-    all_totals_matrix = np.array([v["totals"] for v in monthly_data_by_year.values()])
-    normal_mean = np.nanmean(all_totals_matrix, axis=0)
-    normal_mean = np.where(np.isnan(normal_mean), 0, normal_mean).round(1).tolist()
-
-    target_monthly_totals = [0 if np.isnan(v) else round(v, 1) for v in monthly_data_by_year[target_year]["totals"]]
-    target_wet_days = monthly_data_by_year[target_year]["wet_days"]
-
-    annual_totals = []
-    annual_wet_days = []
-    rx1day_list = []
-
-    for yr in available_years:
-        yr_df = df[df["Year"] == yr]
-        annual_totals.append(round(float(yr_df["Rainfall"].sum()), 1))
-        annual_wet_days.append(int((yr_df["Rainfall"] >= wet_th).sum()))
-        rx1 = yr_df["Rainfall"].max()
-        rx1day_list.append(round(float(rx1), 1) if pd.notna(rx1) else 0.0)
-
-    x = np.arange(len(available_years))
-    if len(x) > 1:
-        slope, intercept = np.polyfit(x, annual_totals, 1)
-        trend_line = [round(float(slope * xi + intercept), 1) for xi in x]
-    else:
-        trend_line = annual_totals
-
-    target_df = df[df["Year"] == target_year]
-    borang_matrix = {}
-    highest_falls = []
-    highest_dates = []
-
-    for m in range(1, 13):
-        m_df = target_df[target_df["Month"] == m]
-        if not m_df.empty and m_df["Rainfall"].notna().any():
-            max_val = m_df["Rainfall"].max()
-            if pd.notna(max_val) and max_val > 0:
-                highest_falls.append(round(float(max_val), 1))
-                top_days = m_df[m_df["Rainfall"] == max_val]["Day"].tolist()
-                highest_dates.append(",".join([str(d) for d in top_days]))
-            else:
-                highest_falls.append(0.0)
-                highest_dates.append("-")
-        else:
-            highest_falls.append(0.0)
-            highest_dates.append("-")
-
-    for d in range(1, 32):
-        borang_matrix[d] = []
-        for m in range(1, 13):
-            val = target_df[(target_df["Month"] == m) & (target_df["Day"] == d)]["Rainfall"].values
-            if len(val) > 0 and pd.notna(val[0]):
-                borang_matrix[d].append(round(float(val[0]), 1))
-            else:
-                borang_matrix[d].append(None)
-
-    annual_mean_norm = round(float(np.sum(normal_mean)), 1)
-    peak_idx = int(np.argmax(target_monthly_totals)) if any(target_monthly_totals) else 0
-    dry_idx = int(np.argmin(target_monthly_totals)) if any(target_monthly_totals) else 0
-
-    return {
-        "station_list": station_names,
-        "selected_station": selected_station,
-        "available_years": available_years,
-        "selected_year": target_year,
-        "kpi": {
-            "annual_mean": annual_mean_norm,
-            "peak_month": f"{MONTH_NAMES[peak_idx]} ({target_monthly_totals[peak_idx]} mm)",
-            "dry_month": f"{MONTH_NAMES[dry_idx]} ({target_monthly_totals[dry_idx]} mm)",
-            "qc_valid_percent": f"{max(0, 100 - len(qc_logs['rejected_months'])*8)}%"
-        },
-        "monthly": {
-            "target_totals": target_monthly_totals,
-            "normal_mean": normal_mean,
-            "wet_days": target_wet_days
-        },
-        "annual": {
-            "years": available_years,
-            "totals": annual_totals,
-            "trend_line": trend_line,
-            "wet_days": annual_wet_days,
-            "rx1day": rx1day_list
-        },
-        "qc_logs": qc_logs,
-        "borang_kosong_format": {
-            "matrix": borang_matrix,
-            "monthly_totals": target_monthly_totals,
-            "rain_days_count": target_wet_days,
-            "highest_falls": highest_falls,
-            "highest_dates": highest_dates
-        }
-    }
-
-
-# ============================================================
-# 2. ENDPOINT EKSPORT MULTIPLE FILES BORANG
-# ============================================================
 @app.post("/api/export-borang-excel")
 async def export_borang_excel(
     files: List[UploadFile] = File(...),
